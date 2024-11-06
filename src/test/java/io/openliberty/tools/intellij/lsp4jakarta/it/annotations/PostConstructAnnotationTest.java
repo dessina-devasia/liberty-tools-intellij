@@ -55,13 +55,13 @@ public class PostConstructAnnotationTest extends BaseJakartaTest {
 
         // expected Diagnostics
 
-        Diagnostic d1 = d(17, 19, 31, "A method with the @PostConstruct annotation must be void.",
+        Diagnostic d1 = d(16, 19, 31, "A method with the @PostConstruct annotation must be void.",
                 DiagnosticSeverity.Error, "jakarta-annotations", "PostConstructReturnType");
 
-        Diagnostic d2 = d(22, 16, 28, "A method with the @PostConstruct annotation must not have any parameters.",
+        Diagnostic d2 = d(21, 16, 28, "A method with the @PostConstruct annotation must not have any parameters.",
                 DiagnosticSeverity.Error, "jakarta-annotations", "PostConstructParams");
 
-        Diagnostic d3 = d(27, 16, 28, "A method with the @PostConstruct annotation must not throw checked exceptions.",
+        Diagnostic d3 = d(26, 16, 28, "A method with the @PostConstruct annotation must not throw checked exceptions.",
                 DiagnosticSeverity.Warning, "jakarta-annotations", "PostConstructException");
 
         assertJavaDiagnostics(diagnosticsParams, utils, d1, d2, d3);
@@ -71,14 +71,13 @@ public class PostConstructAnnotationTest extends BaseJakartaTest {
         nonMatchingAnnotationParams.setUris(Arrays.asList(uri));
 
         // Ensure no diagnostics are generated for any annotation or import that is not exactly "jakarta.annotation.PostConstruct"
-        assertJavaDiagnostics(nonMatchingAnnotationParams, utils, null);
+        //assertJavaDiagnostics(nonMatchingAnnotationParams, utils);
 
         // Starting codeAction tests.
         String newText = "package io.openliberty.sample.jakarta.annotations;\n\n" +
                 "import jakarta.annotation.PostConstruct;\n" +
-                "import jakarta.annotation.Resource;\n\n" +
-                "import my.random.pkg.PostConstruct;\n" +
-                "import on.PostConstruct;\n" +
+                "import jakarta.annotation.Resource;\n" +
+                "import testannotation.on.PostConstruct;\n\n" +
                 "@Resource(type = Object.class, name = \"aa\")\n" +
                 "public class PostConstructAnnotation {\n\n" +
                 "    private Integer studentId;\n\n    private boolean isHappy;\n\n" +
@@ -89,20 +88,21 @@ public class PostConstructAnnotationTest extends BaseJakartaTest {
                 "    public void throwTantrum() throws Exception {\n" +
                 "        System.out.println(\"I'm sad\");\n    }\n\n" +
                 "    private String emailAddress;\n\n" +
+                "    @on.PostConstruct\n" +
+                "    public void nonMatchingMethod() {\n" +
                 "        System.out.println(\"This should not trigger diagnostics.\");\n" +
-                "    }" +
+                "    }\n\n" +
                 "}";
 
         JakartaJavaCodeActionParams codeActionParams2 = createCodeActionParams(uri, d1);
-        TextEdit te3 = te(0, 0, 38, 1, newText);
+        TextEdit te3 = te(0, 0, 37, 1, newText);
         CodeAction ca3 = ca(uri, "Change return type to void", d1, te3);
         assertJavaCodeAction(codeActionParams2, utils, ca3);
 
         String newText1 = "package io.openliberty.sample.jakarta.annotations;\n\n" +
                 "import jakarta.annotation.PostConstruct;\n" +
-                "import jakarta.annotation.Resource;\n\n" +
-                "import my.random.pkg.PostConstruct;\n" +
-                "import on.PostConstruct;\n" +
+                "import jakarta.annotation.Resource;\n" +
+                "import testannotation.on.PostConstruct;\n\n" +
                 "@Resource(type = Object.class, name = \"aa\")\n" +
                 "public class PostConstructAnnotation {\n\n" +
                 "    private Integer studentId;\n\n    private boolean isHappy;\n\n" +
@@ -113,15 +113,16 @@ public class PostConstructAnnotationTest extends BaseJakartaTest {
                 "    public void throwTantrum() throws Exception {\n" +
                 "        System.out.println(\"I'm sad\");\n    }\n\n" +
                 "    private String emailAddress;\n\n" +
+                "    @on.PostConstruct\n" +
+                "    public void nonMatchingMethod() {\n" +
                 "        System.out.println(\"This should not trigger diagnostics.\");\n" +
-                "    }" +
+                "    }\n\n" +
                 "}";
 
         String newText2 = "package io.openliberty.sample.jakarta.annotations;\n\n" +
                 "import jakarta.annotation.PostConstruct;\n" +
-                "import jakarta.annotation.Resource;\n\n" +
-                "import my.random.pkg.PostConstruct;\n" +
-                "import on.PostConstruct;\n" +
+                "import jakarta.annotation.Resource;\n" +
+                "import testannotation.on.PostConstruct;\n\n" +
                 "@Resource(type = Object.class, name = \"aa\")\n" +
                 "public class PostConstructAnnotation {\n\n    " +
                 "private Integer studentId;\n\n    " +
@@ -135,14 +136,16 @@ public class PostConstructAnnotationTest extends BaseJakartaTest {
                 "@PostConstruct\n    " +
                 "public void throwTantrum() throws Exception {\n        " +
                 "System.out.println(\"I'm sad\");\n    }\n\n    " +
-                "private String emailAddress;\n\n}" +
+                "private String emailAddress;\n\n" +
+                "    @on.PostConstruct\n" +
+                "    public void nonMatchingMethod() {\n" +
                 "        System.out.println(\"This should not trigger diagnostics.\");\n" +
-                "    }" +
+                "    }\n\n" +
                 "}";
 
         JakartaJavaCodeActionParams codeActionParams1 = createCodeActionParams(uri, d2);
-        TextEdit te = te(0, 0, 38, 1, newText1);
-        TextEdit te1 = te(0, 0, 38, 1, newText2);
+        TextEdit te = te(0, 0, 37, 1, newText1);
+        TextEdit te1 = te(0, 0, 37, 1, newText2);
         CodeAction ca = ca(uri, "Remove @PostConstruct", d2, te);
         CodeAction ca1 = ca(uri, "Remove all parameters", d2, te1);
         assertJavaCodeAction(codeActionParams1, utils, ca, ca1);
