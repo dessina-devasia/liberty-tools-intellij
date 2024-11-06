@@ -77,7 +77,7 @@ public class PostConstructAnnotationTest extends BaseJakartaTest {
         String newText = "package io.openliberty.sample.jakarta.annotations;\n\n" +
                 "import jakarta.annotation.PostConstruct;\n" +
                 "import jakarta.annotation.Resource;\n" +
-                "import testannotation.on.PostConstruct;\n\n" +
+                "import random.test.pkg.on.PostConstruct;\n\n" +
                 "@Resource(type = Object.class, name = \"aa\")\n" +
                 "public class PostConstructAnnotation {\n\n" +
                 "    private Integer studentId;\n\n    private boolean isHappy;\n\n" +
@@ -88,9 +88,9 @@ public class PostConstructAnnotationTest extends BaseJakartaTest {
                 "    public void throwTantrum() throws Exception {\n" +
                 "        System.out.println(\"I'm sad\");\n    }\n\n" +
                 "    private String emailAddress;\n\n" +
-                "    @on.PostConstruct\n" +
-                "    public void nonMatchingMethod() {\n" +
-                "        System.out.println(\"This should not trigger diagnostics.\");\n" +
+                "    @random.test.pkg.on.PostConstruct\n" +
+                "    public void getHappinessRandom(String type) {\n" +
+                "\n" +
                 "    }\n\n" +
                 "}";
 
@@ -102,7 +102,7 @@ public class PostConstructAnnotationTest extends BaseJakartaTest {
         String newText1 = "package io.openliberty.sample.jakarta.annotations;\n\n" +
                 "import jakarta.annotation.PostConstruct;\n" +
                 "import jakarta.annotation.Resource;\n" +
-                "import testannotation.on.PostConstruct;\n\n" +
+                "import random.test.pkg.on.PostConstruct;\n\n" +
                 "@Resource(type = Object.class, name = \"aa\")\n" +
                 "public class PostConstructAnnotation {\n\n" +
                 "    private Integer studentId;\n\n    private boolean isHappy;\n\n" +
@@ -113,16 +113,16 @@ public class PostConstructAnnotationTest extends BaseJakartaTest {
                 "    public void throwTantrum() throws Exception {\n" +
                 "        System.out.println(\"I'm sad\");\n    }\n\n" +
                 "    private String emailAddress;\n\n" +
-                "    @on.PostConstruct\n" +
-                "    public void nonMatchingMethod() {\n" +
-                "        System.out.println(\"This should not trigger diagnostics.\");\n" +
+                "    @random.test.pkg.on.PostConstruct\n" +
+                "    public void getHappinessRandom(String type) {\n" +
+                "\n" +
                 "    }\n\n" +
                 "}";
 
         String newText2 = "package io.openliberty.sample.jakarta.annotations;\n\n" +
                 "import jakarta.annotation.PostConstruct;\n" +
                 "import jakarta.annotation.Resource;\n" +
-                "import testannotation.on.PostConstruct;\n\n" +
+                "import random.test.pkg.on.PostConstruct;\n\n" +
                 "@Resource(type = Object.class, name = \"aa\")\n" +
                 "public class PostConstructAnnotation {\n\n    " +
                 "private Integer studentId;\n\n    " +
@@ -137,9 +137,9 @@ public class PostConstructAnnotationTest extends BaseJakartaTest {
                 "public void throwTantrum() throws Exception {\n        " +
                 "System.out.println(\"I'm sad\");\n    }\n\n    " +
                 "private String emailAddress;\n\n" +
-                "    @on.PostConstruct\n" +
-                "    public void nonMatchingMethod() {\n" +
-                "        System.out.println(\"This should not trigger diagnostics.\");\n" +
+                "    @random.test.pkg.on.PostConstruct\n" +
+                "    public void getHappinessRandom(String type) {\n" +
+                "\n" +
                 "    }\n\n" +
                 "}";
 

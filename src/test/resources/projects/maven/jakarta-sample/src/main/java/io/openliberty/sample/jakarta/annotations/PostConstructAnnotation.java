@@ -2,7 +2,7 @@ package io.openliberty.sample.jakarta.annotations;
 
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.Resource;
-import testannotation.on.PostConstruct;
+import random.test.pkg.on.PostConstruct;
 
 @Resource(type = Object.class, name = "aa")
 public class PostConstructAnnotation {
@@ -30,9 +30,9 @@ public class PostConstructAnnotation {
 
     private String emailAddress;
 
-    @on.PostConstruct
-    public void nonMatchingMethod() {
-        System.out.println("This should not trigger diagnostics.");
+    @random.test.pkg.on.PostConstruct
+    public void getHappinessRandom(String type) {
+
     }
 
 }
