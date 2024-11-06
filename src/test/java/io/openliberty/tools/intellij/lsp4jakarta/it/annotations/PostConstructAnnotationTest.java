@@ -79,8 +79,7 @@ public class PostConstructAnnotationTest extends BaseJakartaTest {
                 "    }\n\n    @PostConstruct\n" +
                 "    public void throwTantrum() throws Exception {\n" +
                 "        System.out.println(\"I'm sad\");\n    }\n\n" +
-                "    private String emailAddress;\n\n" +
-                "}";
+                "    private String emailAddress;\n\n}";
 
         JakartaJavaCodeActionParams codeActionParams2 = createCodeActionParams(uri, d1);
         TextEdit te3 = te(0, 0, 31, 1, newText);
@@ -99,8 +98,7 @@ public class PostConstructAnnotationTest extends BaseJakartaTest {
                 "    }\n\n    @PostConstruct\n" +
                 "    public void throwTantrum() throws Exception {\n" +
                 "        System.out.println(\"I'm sad\");\n    }\n\n" +
-                "    private String emailAddress;\n\n" +
-                "}";
+                "    private String emailAddress;\n\n}";
 
         String newText2 = "package io.openliberty.sample.jakarta.annotations;\n\n" +
                 "import jakarta.annotation.PostConstruct;\n" +
@@ -118,8 +116,7 @@ public class PostConstructAnnotationTest extends BaseJakartaTest {
                 "@PostConstruct\n    " +
                 "public void throwTantrum() throws Exception {\n        " +
                 "System.out.println(\"I'm sad\");\n    }\n\n    " +
-                "private String emailAddress;\n\n" +
-                "}";
+                "private String emailAddress;\n\n}";
 
         JakartaJavaCodeActionParams codeActionParams1 = createCodeActionParams(uri, d2);
         TextEdit te = te(0, 0, 31, 1, newText1);
