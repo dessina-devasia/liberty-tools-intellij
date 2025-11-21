@@ -179,6 +179,8 @@ public abstract class SingleModJakartaLSTestCommon {
             UIBotTestUtils.chooseQuickFix(remoteRobot, quickfixChooserString);
 
             TestUtils.validateCodeInJavaSrc(pathToSrc.toString(), publicString);
+        } catch (Exception e) {
+            e.printStackTrace();
         }
         finally {
             // Replace modified content with the original content
