@@ -252,65 +252,83 @@ main() {
     fi
 
     export JUNIT_OUTPUT_TXT="$currentLoc"/build/junit.out
-    
-    # Determine the number of test iterations based on the test class
-    if [ "$TEST_CLASS" = "io.openliberty.tools.intellij.it.GradleSingleModJakartaLSTest" ]; then
-        TEST_ITERATIONS=100
-        echo -e "\n$(${currentTime[@]}): INFO: Running Gradle-Jakarta-Language-Server test 100 times..."
-    else
-        TEST_ITERATIONS=1
-    fi
-    
-    # Run the tests for the specified number of iterations
-    for iteration in $(seq 1 $TEST_ITERATIONS); do
-        echo -e "\n$(${currentTime[@]}): INFO: Test iteration $iteration of $TEST_ITERATIONS..."
-        
-        # Run the tests up to 5 times for SocketTimeoutException handling. "SocketTimeoutException" seems to be rare so hopefully 5
-        # repetitions are enough. Also a failure takes about 1 hour and the github time limit is
-        # 6 hours so it is unlikely we could run more than 5 times in one build.
-        for restartCount in {1..5}; do
-            startIDE
-            # Run the tests
-            set -o pipefail # using tee requires we use this setting to gather the rc of gradlew
+    # Run the tests up to 5 times. "SocketTimeoutException" seems to be rare so hopefully 5
+    # repetitions are enough. Also a failure takes about 1 hour and the github time limit is
+    # 6 hours so it is unlikely we could run more than 5 times in one build.
+    for restartCount in {1..5}; do
+        startIDE
+        # Run the tests
+        set -o pipefail # using tee requires we use this setting to gather the rc of gradlew
+        if [ "$TEST_CLASS" = "io.openliberty.tools.intellij.it.GradleSingleModJakartaLSTest" ]; then
+            echo -e "\n$(${currentTime[@]}): INFO: Running testJakartaQuickFixInJavaPart 100 times..."
+
+            failureCount=0
+            failedIterations=""
+
+            for i in {1..100}; do
+                echo -e "\n$(${currentTime[@]}): INFO: Iteration $i/100"
+
+                ./gradlew test \
+                    --tests "io.openliberty.tools.intellij.it.GradleSingleModJakartaLSTest.testJakartaQuickFixInJavaPart" \
+                    -PuseLocal="$USE_LOCAL_PLUGIN" \
+                    | tee "${JUNIT_OUTPUT_TXT}.${i}"
+
+                iterationRC=${PIPESTATUS[0]}
+
+                if [ "$iterationRC" -ne 0 ]; then
+                    echo -e "\n$(${currentTime[@]}): WARNING: Failed on iteration $i"
+                    failureCount=$((failureCount + 1))
+                    failedIterations="$failedIterations $i"
+                fi
+            done
+
+            echo -e "\n====================================="
+            echo "Total iterations: 100"
+            echo "Failures: $failureCount"
+            echo "Failed iterations:$failedIterations"
+            echo "====================================="
+
+            # Final return code
+            if [ "$failureCount" -gt 0 ]; then
+                testRC=1
+            else
+                testRC=0
+            fi
+        else
             if [ -n "$TEST_CLASS" ]; then
-                echo -e "\n$(${currentTime[@]}): INFO: Running specific test class: $TEST_CLASS"
                 test_args=(--tests "$TEST_CLASS")
             else
-                echo -e "\n$(${currentTime[@]}): INFO: Running all tests..."
                 test_args=()
             fi
-            ./gradlew test "${test_args[@]}" -PuseLocal="$USE_LOCAL_PLUGIN" | tee "$JUNIT_OUTPUT_TXT"
-            testRC=$? # gradlew test only returns 0 or 1, not the return code from JUnit
-            set +o pipefail # reset this option
-            grep -i "SocketTimeoutException" "$JUNIT_OUTPUT_TXT" && testRC=23
-            if [ "$testRC" -eq 23 ]; then
-                # rc = 23 means SocketTimeoutException detected, kill the IDE and try again
-                if [[ $OS == "MINGW64_NT"* ]]; then
-                    kill -n 1 $IDE_PID
-                    sleep 5
-                    kill -n 9 $IDE_PID
-                    sleep 5
-                    ps -ef # display all user processes
-                else
-                    kill -1 $IDE_PID # SIGHUP (hang up the phone)
-                    sleep 5
-                    kill -9 $IDE_PID # SIGKILL, in case the SIGHUP did not work
-                    sleep 5
-                    ps -f $IDE_PID # display whether the process is still there
-                fi
+
+            ./gradlew test "${test_args[@]}" \
+                -PuseLocal="$USE_LOCAL_PLUGIN" \
+                | tee "$JUNIT_OUTPUT_TXT"
+
+            testRC=${PIPESTATUS[0]}
+        fi
+        testRC=$? # gradlew test only returns 0 or 1, not the return code from JUnit
+        set +o pipefail # reset this option
+        grep -i "SocketTimeoutException" "$JUNIT_OUTPUT_TXT" && testRC=23
+        if [ "$testRC" -eq 23 ]; then
+            # rc = 23 means SocketTimeoutException detected, kill the IDE and try again
+            if [[ $OS == "MINGW64_NT"* ]]; then
+                kill -n 1 $IDE_PID
+                sleep 5
+                kill -n 9 $IDE_PID
+                sleep 5
+                ps -ef # display all user processes
             else
-                # Success or failure, if it is not SocketTimeoutException then exit and report results
-                break;
+                kill -1 $IDE_PID # SIGHUP (hang up the phone)
+                sleep 5
+                kill -9 $IDE_PID # SIGKILL, in case the SIGHUP did not work
+                sleep 5
+                ps -f $IDE_PID # display whether the process is still there
             fi
-        done
-        
-        # If test failed (and it's not SocketTimeoutException), exit immediately
-        if [ "$testRC" -ne 0 ]; then
-            echo -e "\n$(${currentTime[@]}): ERROR: Test iteration $iteration failed with rc: ${testRC}."
+        else
+            # Success or failure, if it is not SocketTimeoutException then exit and report results
             break;
         fi
-        
-        echo -e "\n$(${currentTime[@]}): INFO: Test iteration $iteration completed successfully."
     done
 
     # If there were any errors, gather some debug data before exiting.
