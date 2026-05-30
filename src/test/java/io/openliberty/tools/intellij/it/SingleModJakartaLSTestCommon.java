@@ -187,6 +187,52 @@ public abstract class SingleModJakartaLSTestCommon {
     }
 
     /**
+     * Tests Jakarta Language Server quick fix support in a Java source file - repeated 50 times
+     */
+    @Test
+    @Video
+    public void testJakartaQuickFixInJavaPartRepeated50Times() {
+        for (int i = 1; i <= 50; i++) {
+            TestUtils.printTrace(TestUtils.TraceSevLevel.INFO, "Running testJakartaQuickFixInJavaPart iteration " + i + " of 50");
+            
+            String publicString = "public Response getProperties() {";
+            String privateString = "private Response getProperties() {";
+            String flaggedString = "getProperties";
+
+            Path pathToSrc = Paths.get(projectsPath, projectName, "src", "main", "java", "io", "openliberty", "mp", "sample", "system", "SystemResource2.java");
+            String quickfixChooserString = "Make method public";
+
+            // get focus on file tab prior to copy
+            UIBotTestUtils.clickOnFileTab(remoteRobot, "SystemResource2.java");
+
+            // Save the current content.
+            UIBotTestUtils.copyWindowContent(remoteRobot);
+
+            // Modify the method signature
+            UIBotTestUtils.selectAndModifyTextInJavaPart(remoteRobot, "SystemResource2.java", publicString, privateString);
+
+            try {
+                // validate public signature no longer found in java part
+                TestUtils.validateStringNotInFile(pathToSrc.toString(), publicString);
+
+                // there should be a diagnostic - move cursor to hover point
+                UIBotTestUtils.hoverForQuickFixInAppFile(remoteRobot, flaggedString, "SystemResource2.java", quickfixChooserString);
+
+                // trigger and use the quickfix popup attached to the diagnostic
+                UIBotTestUtils.chooseQuickFix(remoteRobot, quickfixChooserString);
+
+                TestUtils.validateCodeInJavaSrc(pathToSrc.toString(), publicString);
+                
+                TestUtils.printTrace(TestUtils.TraceSevLevel.INFO, "Completed testJakartaQuickFixInJavaPart iteration " + i + " of 50 successfully");
+            }
+            finally {
+                // Replace modified content with the original content
+                UIBotTestUtils.pasteOnActiveWindow(remoteRobot);
+            }
+        }
+    }
+
+    /**
      * Prepares the environment to run the tests.
      *
      * @param projectPath The path of the project.
