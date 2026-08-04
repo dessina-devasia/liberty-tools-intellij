@@ -15,6 +15,7 @@ import com.intellij.notification.Notifications;
 import com.intellij.openapi.actionSystem.ActionUpdateThread;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
+import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
@@ -30,7 +31,10 @@ import org.jetbrains.plugins.terminal.TerminalToolWindowManager;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 public abstract class LibertyGeneralAction extends AnAction {
     protected static final Logger LOGGER = Logger.getInstance(LibertyGeneralAction.class);
@@ -177,7 +181,8 @@ public abstract class LibertyGeneralAction extends AnAction {
         LibertyProjectUtil.setFocusToWidget(project, existingWidget);
 
         // Shows error for actions where terminal widget does not exist or action requires a terminal to already exist and expects "Start" to be running
-        if (widget == null || (!createWidget && !widget.hasRunningCommands())) {
+        // hasRunningCommands() must not be called from the EDT (asserted since IntelliJ 2026.1)
+        if (widget == null || (!createWidget && !computeOffEdt(widget::hasRunningCommands))) {
             String msg;
             if (createWidget) {
                 msg = LocalizedResourceUtil.getMessage("liberty.terminal.cannot.resolve", actionCmd, project.getName());
@@ -204,4 +209,20 @@ public abstract class LibertyGeneralAction extends AnAction {
      * @return The string representation of the action command being processed.
      */
     protected abstract String getActionCommandName();
+
+    /**
+     * Runs the given supplier on a pooled thread and blocks for the result.
+     * Use this to call APIs that assert they must not be called from the EDT.
+     */
+    private static <T> T computeOffEdt(Supplier<T> supplier) {
+        Future<T> future = ApplicationManager.getApplication().executeOnPooledThread(supplier::get);
+        try {
+            return future.get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        } catch (ExecutionException e) {
+            throw new RuntimeException(e.getCause());
+        }
+    }
 }
