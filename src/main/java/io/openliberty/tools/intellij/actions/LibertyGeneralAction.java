@@ -214,6 +214,8 @@ public abstract class LibertyGeneralAction extends AnAction {
     /**
      * Runs the given supplier on a pooled thread and blocks for the result.
      * Use this to call APIs that assert they must not be called from the EDT.
+     *
+     * Method assisted by IBM Bob
      */
     private static <T> T computeOffEdt(Supplier<T> supplier) {
         Future<T> future = ApplicationManager.getApplication().executeOnPooledThread(supplier::get);
