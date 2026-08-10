@@ -220,9 +220,11 @@ public abstract class LibertyGeneralAction extends AnAction {
             return future.get();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new RuntimeException(e);
+            throw new ProcessCanceledException(e);
         } catch (ExecutionException e) {
-            throw new RuntimeException(e.getCause());
+            Throwable cause = e.getCause();
+            if (cause instanceof RuntimeException) throw (RuntimeException) cause;
+            throw new RuntimeException(cause != null ? cause : e);
         }
     }
 }
