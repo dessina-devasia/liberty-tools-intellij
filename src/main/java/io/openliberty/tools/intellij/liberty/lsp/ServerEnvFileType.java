@@ -44,7 +44,7 @@ public class ServerEnvFileType extends LanguageFileType {
 
     @Override
     public @NotNull String getDefaultExtension() {
-        return "";
+        return "env";
     }
 
     @Override
