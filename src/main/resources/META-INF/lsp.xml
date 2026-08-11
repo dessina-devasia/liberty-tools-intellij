@@ -78,7 +78,7 @@
     </extensions>
     <extensions defaultExtensionNs="com.intellij">
         <postStartupActivity implementation="io.openliberty.tools.intellij.lsp4mp4ij.MicroProfilePostStartupActivity"/>
-        <fileType name="server.env" fileNames="server.env" extensions="env"
+        <fileType name="server.env" language="Properties" fileNames="server.env" extensions="env"
                   implementationClass="io.openliberty.tools.intellij.liberty.lsp.ServerEnvFileType"/>
         <!-- Suppress certain Properties language inspections on server.env files -->
         <lang.inspectionSuppressor language="Properties"
