@@ -240,6 +240,29 @@ intellijPlatform {
             untilBuild = provider { null }
         }
         changeNotes = """
+        <h2> 26.0.8 </h2>
+        <p>Version 26.0.8 of Liberty Tools for IntelliJ IDEA contains enhancements and fixes. Version 26.0.8 requires a minimum of IntelliJ IDEA 2025.3 and a minimum of Java 17.</p>
+        Notable changes:
+        <ul>
+        <li> Support for IntelliJ IDEA 2026.2 and its successive fix releases. </li>
+        <li> Updated the <a href="https://github.com/OpenLiberty/liberty-language-server">Liberty Config Language Server</a> version to 2.4.1, which includes multiple enhancements and bug fixes. For more information regarding changes for version 2.4.1, refer to the release notes:
+          <ul>
+            <li> https://github.com/OpenLiberty/liberty-language-server/releases/tag/liberty-langserver-2.4.1 </li>
+            <li> https://github.com/OpenLiberty/liberty-language-server/releases/tag/lemminx-liberty-2.4.1 </li>
+          </ul>
+        </li>
+        <li> Updated the <a href="https://github.com/eclipse-lsp4jakarta/lsp4jakarta">LSP4Jakarta</a> version to 0.2.6, which includes multiple enhancements and bug fixes. For more information regarding changes for version 0.2.6, refer to the release notes:
+          <ul>
+            <li> https://github.com/eclipse-lsp4jakarta/lsp4jakarta/releases/tag/0.2.6 </li>
+          </ul>
+        </li>
+        <li> Liberty Tools version 26.0.8 has been tested with <a href="https://github.com/redhat-developer/lsp4ij">LSP4IJ</a> version 0.20.1.</li>
+          <ul>
+            <li> For more information regarding tested LSP4IJ versions, refer to the table in <a href="https://github.com/OpenLiberty/liberty-tools-intellij/blob/main/docs/user-guide.md#manually-install-specific-release-of-the-lsp4ij-plugin-from-the-marketplace">this section</a> of the user guide. </li>
+          </ul>
+        </li>
+        See the <a href="https://github.com/OpenLiberty/liberty-tools-intellij/compare/25.0.12...26.0.8">commit log</a> for the full set of changes since the previous release.
+        <br>
         <h2> 25.0.12 </h2>
         <p>Version 25.0.12 of Liberty Tools for IntelliJ IDEA contains enhancements and fixes. Version 25.0.12 requires a minimum of IntelliJ IDEA 2025.1 and a minimum of Java 17.</p>
         Notable changes:
