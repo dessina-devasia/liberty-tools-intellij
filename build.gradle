@@ -258,7 +258,7 @@ intellijPlatform {
         </li>
         <li> Liberty Tools version 26.0.8 has been tested with <a href="https://github.com/redhat-developer/lsp4ij">LSP4IJ</a> version 0.20.1.</li>
           <ul>
-            <li> For more information regarding tested LSP4IJ versions, refer to the table in <a href="https://github.com/OpenLiberty/liberty-tools-intellij/blob/main/docs/user-guide.md#manually-install-specific-release-of-the-lsp4ij-plugin-from-the-marketplace">this section</a> of the user guide. </li>
+            <li> For a complete list of tested LSP4IJ versions, refer to the <a href="https://github.com/OpenLiberty/liberty-tools-intellij/blob/main/docs/user-guide.md#lsp4ij-tested-versions">LSP4IJ tested versions</a> table in the user guide. </li>
           </ul>
         </li>
         See the <a href="https://github.com/OpenLiberty/liberty-tools-intellij/compare/25.0.12...26.0.8">commit log</a> for the full set of changes since the previous release.
