@@ -203,6 +203,115 @@ public class LibertyModules {
                 }
             }
         }
+
+        // Handle the case where children have NO <parent> declaration and the root aggregator
+        // pom.xml does NOT have the Liberty plugin (so it was never scanned into libertyModules).
+        // For every Liberty module still without a parent, look one directory level up for a
+        // pom.xml or settings.gradle that lists the module's directory as a submodule.
+        // A synthetic aggregator LibertyModule is created on demand (one per unique root location)
+        // and registered into libertyModules so it becomes a tree root node.
+        Map<String, LibertyModule> syntheticAggregators = new HashMap<>();
+
+        for (LibertyModule module : modules) {
+            if (module.getParentModule() != null) continue; // already linked
+
+            VirtualFile buildFile = module.getBuildFile();
+            if (buildFile == null || buildFile.getParent() == null) continue;
+
+            String moduleDir = buildFile.getParent().getPath();
+            String moduleDirName = buildFile.getParent().getName();
+            File parentDir = new File(moduleDir).getParentFile();
+            if (parentDir == null) continue;
+
+            String parentDirPath = parentDir.getPath();
+
+            // Check for Maven aggregator
+            File parentPom = new File(parentDir, "pom.xml");
+            if (parentPom.exists()) {
+                try {
+                    MavenProjectMetadata parentMeta = new MavenProjectMetadata(parentPom.getPath());
+                    if (parentMeta.isAggregator() && parentMeta.getSubprojects().contains(moduleDirName)) {
+                        // Get or create the synthetic aggregator module for this root pom
+                        LibertyModule aggregator = syntheticAggregators.get(parentDirPath);
+                        if (aggregator == null) {
+                            // Also check if it was already added via a normal scan
+                            aggregator = byLocation.get(parentDirPath);
+                        }
+                        if (aggregator == null) {
+                            // Create a synthetic aggregator — no Liberty plugin, just structural
+                            String aggName = parentMeta.getProjectName() != null
+                                    ? parentMeta.getProjectName()
+                                    : parentDir.getName();
+                            VirtualFile parentVFile = com.intellij.openapi.vfs.VfsUtil
+                                    .findFileByIoFile(parentPom, true);
+                            if (parentVFile != null) {
+                                aggregator = new LibertyModule(project, parentVFile, aggName,
+                                        module.getProjectType(), false);
+                                aggregator.setBuildMetadata(parentMeta);
+                                syntheticAggregators.put(parentDirPath, aggregator);
+                                // Register into the live map so the tree builder sees it
+                                libertyModules.put(parentVFile, aggregator);
+                                byLocation.put(parentDirPath, aggregator);
+                                byName.putIfAbsent(aggName, aggregator);
+                            }
+                        }
+                        if (aggregator != null && module.getParentModule() == null) {
+                            module.setParentModule(aggregator);
+                            aggregator.addChildLibertyModule(module);
+                        }
+                    }
+                } catch (Exception e) {
+                    LOGGER.warn("Failed to parse potential parent pom at: " + parentPom.getPath(), e);
+                }
+                continue; // Maven project — no need to check Gradle
+            }
+
+            // Check for Gradle aggregator (settings file in parent dir)
+            java.nio.file.Path parentSettingsFile = GradleProjectMetadata.findSettingsFile(
+                    java.nio.file.Paths.get(parentDirPath));
+            if (parentSettingsFile != null) {
+                try {
+                    GradleProjectMetadata parentMeta = new GradleProjectMetadata(
+                            GradleProjectMetadata.findBuildFile(java.nio.file.Paths.get(parentDirPath)) != null
+                                    ? GradleProjectMetadata.findBuildFile(java.nio.file.Paths.get(parentDirPath)).toString()
+                                    : null,
+                            parentSettingsFile.toString());
+                    if (parentMeta.isAggregator() && parentMeta.getSubprojects().contains(moduleDirName)) {
+                        LibertyModule aggregator = syntheticAggregators.get(parentDirPath);
+                        if (aggregator == null) {
+                            aggregator = byLocation.get(parentDirPath);
+                        }
+                        if (aggregator == null) {
+                            String aggName = parentMeta.getProjectName() != null
+                                    ? parentMeta.getProjectName()
+                                    : parentDir.getName();
+                            java.nio.file.Path parentBuildFilePath = GradleProjectMetadata
+                                    .findBuildFile(java.nio.file.Paths.get(parentDirPath));
+                            File parentBuildFile = parentBuildFilePath != null
+                                    ? parentBuildFilePath.toFile()
+                                    : new File(parentDir, "settings.gradle");
+                            VirtualFile parentVFile = com.intellij.openapi.vfs.VfsUtil
+                                    .findFileByIoFile(parentBuildFile, true);
+                            if (parentVFile != null) {
+                                aggregator = new LibertyModule(project, parentVFile, aggName,
+                                        module.getProjectType(), false);
+                                aggregator.setBuildMetadata(parentMeta);
+                                syntheticAggregators.put(parentDirPath, aggregator);
+                                libertyModules.put(parentVFile, aggregator);
+                                byLocation.put(parentDirPath, aggregator);
+                                byName.putIfAbsent(aggName, aggregator);
+                            }
+                        }
+                        if (aggregator != null && module.getParentModule() == null) {
+                            module.setParentModule(aggregator);
+                            aggregator.addChildLibertyModule(module);
+                        }
+                    }
+                } catch (Exception e) {
+                    LOGGER.warn("Failed to parse potential parent settings at: " + parentSettingsFile, e);
+                }
+            }
+        }
     }
 
     /**

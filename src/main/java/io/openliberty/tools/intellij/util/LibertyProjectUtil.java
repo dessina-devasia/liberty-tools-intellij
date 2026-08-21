@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2020, 2025 IBM Corporation.
+ * Copyright (c) 2020, 2026 IBM Corporation.
  *
  * This program and the accompanying materials are made available under the
  * terms of the Eclipse Public License v. 2.0 which is available at
@@ -242,6 +242,11 @@ public class LibertyProjectUtil {
         }
         if (indexedVFiles != null) {
             for (VirtualFile vFile : indexedVFiles) {
+                // Skip build files inside build output directories (Maven target/, Gradle build/).
+                // These are Maven/Gradle-generated copies and must never be treated as project roots.
+                if (isBuildOutputFile(vFile)) {
+                    continue;
+                }
                 try {
                     BuildFile buildFile;
                     if (buildFileType.equals(Constants.ProjectType.LIBERTY_MAVEN_PROJECT)) {
@@ -261,6 +266,27 @@ public class LibertyProjectUtil {
             }
         }
         return collectedBuildFiles;
+    }
+
+    /**
+     * Returns {@code true} when the given virtual file lives inside a Maven {@code target/}
+     * or Gradle {@code build/} output directory and should therefore be excluded from
+     * Liberty project detection.
+     *
+     * <p>Maven copies {@code pom.xml} files into {@code target/} during packaging (e.g.
+     * {@code target/m2e-wtp/ear-resources/META-INF/maven/.../pom.xml}). If those copies
+     * are not excluded they appear as phantom top-level Liberty modules.</p>
+     */
+    private static boolean isBuildOutputFile(VirtualFile vFile) {
+        VirtualFile parent = vFile.getParent();
+        while (parent != null) {
+            String name = parent.getName();
+            if ("target".equals(name) || "build".equals(name)) {
+                return true;
+            }
+            parent = parent.getParent();
+        }
+        return false;
     }
 
     // Wrap the search for files in a executeOnPooledThread() method to handle the slow operations on EDT issue
