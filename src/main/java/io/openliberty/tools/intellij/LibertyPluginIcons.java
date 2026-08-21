@@ -49,7 +49,7 @@ public interface LibertyPluginIcons {
 
     static Icon spinnerFrame(int frameIndex) {
         return IconLoader.getIcon(
-                "/icons/spinners/state/state_in_progress_" + frameIndex + "_8.png",
+                "/icons/spinners/state/state_in_progress_" + frameIndex + "_8.svg",
                 LibertyPluginIcons.class);
     }
 }

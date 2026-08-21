@@ -32,7 +32,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class SpinnerAnimator {
 
-    /** Total number of animation frames (matches the 12 PNG files). */
+    /** Total number of animation frames (matches the 12 SVG files). */
     public static final int FRAME_COUNT = 12;
 
     /** Delay between frames in milliseconds (~10 fps). */
