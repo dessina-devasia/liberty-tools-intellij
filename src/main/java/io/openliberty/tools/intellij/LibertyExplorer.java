@@ -254,11 +254,6 @@ public class LibertyExplorer extends SimpleToolWindowPanel {
         LibertyTreeRenderer libertyRenderer = new LibertyTreeRenderer(backgroundColor, spinner);
         tree.setCellRenderer(libertyRenderer);
 
-        // Expand all nodes so parent→child hierarchy is immediately visible.
-        for (int i = 0; i < tree.getRowCount(); i++) {
-            tree.expandRow(i);
-        }
-
         return tree;
     }
 
