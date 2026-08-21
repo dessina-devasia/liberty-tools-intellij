@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2022, 2025 IBM Corporation.
+ * Copyright (c) 2022, 2026 IBM Corporation.
  *
  * This program and the accompanying materials are made available under the
  * terms of the Eclipse Public License v. 2.0 which is available at
@@ -18,12 +18,17 @@ import io.openliberty.tools.intellij.util.*;
 import org.xml.sax.SAXException;
 
 import javax.xml.parsers.ParserConfigurationException;
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.*;
 
 /**
- * Singleton to save the Liberty modules in the open project
+ * Singleton that tracks all Liberty modules discovered in the open IntelliJ project.
+ *
+ * <p>After the initial flat scan, {@link #rescanLibertyModules(Project)} performs a second
+ * pass to link parent/aggregator modules to their child Liberty leaf modules, enabling
+ * multi-module build support.</p>
  */
 public class LibertyModules {
     private final static Logger LOGGER = Logger.getInstance(LibertyModules.class);
@@ -57,6 +62,9 @@ public class LibertyModules {
 
     /**
      * Scan the project for the modules that are Liberty apps and update any existing entries.
+     * After updating all module entries, performs a second pass to link parent aggregator
+     * modules to their Liberty leaf child modules.
+     *
      * @return this singleton, the list will be empty if there are no Liberty modules
      */
     public LibertyModules rescanLibertyModules(Project project) {
@@ -101,8 +109,128 @@ public class LibertyModules {
                 boolean validContainerVersion = buildFile.isValidContainerVersion();
                 addLibertyModule(new LibertyModule(project, virtualFile, projectName, buildFile.getProjectType(), validContainerVersion));
             }
+
+            // Second pass: attach per-module build metadata and link parent → child relationships.
+            buildMultiModuleRelationships(project);
         }
         return this;
+    }
+
+    /**
+     * Parses each module's build file to extract multi-module metadata, then links
+     * aggregator (parent) modules to their Liberty leaf child modules.
+     *
+     * <p>The algorithm mirrors the Eclipse WorkspaceModel two-pass approach:</p>
+     * <ol>
+     *   <li>Parse every module's build file and store {@link LibertyProjectMetadata}.</li>
+     *   <li>For each module that declares a parent, wire the relationship; for each
+     *       aggregator that declares children, wire the reverse.</li>
+     * </ol>
+     */
+    private void buildMultiModuleRelationships(Project project) {
+        // Snapshot the module list outside the synchronized block to avoid re-entrant locking.
+        // getLibertyModules() acquires synchronized(libertyModules); we are called from within
+        // rescanLibertyModules which already holds that lock. Take a snapshot of the values directly.
+        List<LibertyModule> modules = new ArrayList<>(libertyModules.values());
+        modules.removeIf(m -> !project.equals(m.getProject()));
+
+        // -- Pass 1: parse build metadata for every module --
+        // Index by BOTH the display name (set by the scan) AND the build-file artifactId/rootProject.name
+        // (from metadata) to cover the case where the two differ.
+        Map<String, LibertyModule> byName = new HashMap<>();
+        Map<String, LibertyModule> byLocation = new HashMap<>();
+
+        for (LibertyModule module : modules) {
+            VirtualFile buildFile = module.getBuildFile();
+            if (buildFile == null) continue;
+
+            LibertyProjectMetadata metadata = parseBuildMetadata(module);
+            if (metadata != null) {
+                module.setBuildMetadata(metadata);
+                // Index by the authoritative name from the build file.
+                if (metadata.getProjectName() != null) {
+                    byName.put(metadata.getProjectName(), module);
+                }
+            }
+            // Also index by the display name used in the UI (may be a fallback directory name).
+            byName.putIfAbsent(module.getName(), module);
+
+            String location = buildFile.getParent() != null
+                    ? buildFile.getParent().getPath() : null;
+            if (location != null) {
+                byLocation.put(location, module);
+            }
+        }
+
+        // -- Pass 2: link parent ↔ child relationships --
+        for (LibertyModule module : modules) {
+            LibertyProjectMetadata metadata = module.getBuildMetadata();
+            if (metadata == null) continue;
+
+            // Case A: child declares its parent (Maven <parent>/<artifactId>, Gradle parent detection).
+            // parentProjectName is the aggregator's artifactId / root project name.
+            String parentProjectName = metadata.getParentProjectName();
+            if (parentProjectName != null) {
+                LibertyModule parentModule = byName.get(parentProjectName);
+                if (parentModule != null && module.getParentModule() == null) {
+                    module.setParentModule(parentModule);
+                    parentModule.addChildLibertyModule(module);
+                }
+                // Don't 'continue' here — also try Case B so that an aggregator that is
+                // itself a child of another aggregator still processes its own subprojects.
+            }
+
+            // Case B: aggregator declares its children (Maven <modules>, Gradle include).
+            if (metadata.isAggregator()) {
+                String parentLocation = module.getBuildFile().getParent() != null
+                        ? module.getBuildFile().getParent().getPath() : null;
+                if (parentLocation == null) continue;
+
+                for (String subprojectPath : metadata.getSubprojects()) {
+                    try {
+                        File parentDir = new File(parentLocation);
+                        File childDir = new File(parentDir, subprojectPath);
+                        String resolvedPath = childDir.getCanonicalPath();
+                        LibertyModule childModule = byLocation.get(resolvedPath);
+                        if (childModule != null && childModule.getParentModule() == null) {
+                            childModule.setParentModule(module);
+                            module.addChildLibertyModule(childModule);
+                        }
+                    } catch (IOException e) {
+                        LOGGER.warn("Failed to resolve subproject path: " + subprojectPath
+                                + " for parent: " + parentLocation, e);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Parses build metadata for a given Liberty module.
+     * Returns {@code null} when the build file cannot be parsed.
+     */
+    private LibertyProjectMetadata parseBuildMetadata(LibertyModule module) {
+        VirtualFile buildFile = module.getBuildFile();
+        if (buildFile == null) return null;
+
+        try {
+            String buildFilePath = buildFile.getPath();
+            if (module.getProjectType() == Constants.ProjectType.LIBERTY_MAVEN_PROJECT) {
+                return new MavenProjectMetadata(buildFilePath);
+            } else {
+                // For Gradle, also look for the settings file in the same directory.
+                String settingsFilePath = null;
+                java.nio.file.Path settingsFile = GradleProjectMetadata.findSettingsFile(
+                        java.nio.file.Paths.get(buildFilePath).getParent());
+                if (settingsFile != null) {
+                    settingsFilePath = settingsFile.toString();
+                }
+                return new GradleProjectMetadata(buildFilePath, settingsFilePath);
+            }
+        } catch (Exception e) {
+            LOGGER.warn("Could not parse build metadata for module: " + module.getName(), e);
+            return null;
+        }
     }
 
     /**

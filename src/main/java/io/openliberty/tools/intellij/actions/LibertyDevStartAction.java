@@ -15,6 +15,7 @@ import io.openliberty.tools.intellij.LibertyModule;
 import io.openliberty.tools.intellij.util.*;
 import static io.openliberty.tools.intellij.util.Constants.ProjectType.*;
 import static io.openliberty.tools.intellij.util.Constants.*;
+import static io.openliberty.tools.intellij.util.Constants.LIBERTY_GRADLE_DEBUG_PARAM;
 import org.jetbrains.plugins.terminal.ShellTerminalWidget;
 
 import java.io.IOException;
@@ -95,7 +96,43 @@ public class LibertyDevStartAction extends LibertyGeneralAction {
 
         // Do not use the custom parameters in the future unless we get here via the run configuration dialog
         libertyModule.setUseCustom(false);
-        String cdToProjectCmd = "cd \"" + buildFile.getParent().getPath() + "\"";
+
+        // For child modules in a multi-module build, run from the parent directory and
+        // append the module selector argument (-pl :name -am for Maven,
+        // :subproject:task prefix for Gradle). The buildSettingsCmd already contains the
+        // correct wrapper/executable; we only need to adjust the working directory and
+        // append the module selector.
+        String executionDir;
+        if (projectType.equals(LIBERTY_MAVEN_PROJECT)) {
+            executionDir = LibertyMavenUtil.getMavenExecutionDir(libertyModule);
+            String moduleArgs = LibertyMavenUtil.getMavenModuleArgs(libertyModule);
+            if (!moduleArgs.isEmpty()) {
+                startCmd = startCmd + moduleArgs;
+            }
+        } else {
+            executionDir = LibertyGradleUtil.getGradleExecutionDir(libertyModule);
+            // For Gradle child modules the task is already qualified via getGradleTaskForModule
+            // inside the start command constants — re-build the start cmd with a qualified task.
+            if (libertyModule.getParentModule() != null) {
+                String baseTask = runInContainer ? "libertyDevc" : "libertyDev";
+                String qualifiedTask = LibertyGradleUtil.getGradleTaskForModule(libertyModule, baseTask);
+                String qualifiedContainerTask = LibertyGradleUtil.getGradleTaskForModule(libertyModule, "libertyDevc");
+                if (runInContainer) {
+                    startCmd = buildSettingsCmd + " " + qualifiedContainerTask;
+                } else if (libertyModule.isCustom()) {
+                    String containerTask = libertyModule.runInContainer() ? qualifiedContainerTask : qualifiedTask;
+                    startCmd = buildSettingsCmd + " " + containerTask + libertyModule.getCustomStartParams();
+                } else {
+                    startCmd = buildSettingsCmd + " " + qualifiedTask;
+                }
+                // Re-attach debug param if needed
+                if (libertyModule.isDebugMode() && debugPort != -1) {
+                    startCmd += " " + LIBERTY_GRADLE_DEBUG_PARAM + debugPort;
+                }
+            }
+        }
+
+        String cdToProjectCmd = "cd \"" + executionDir + "\"";
         LibertyActionUtil.executeCommand(widget, cdToProjectCmd, startCmd);
         if (libertyModule.isDebugMode() && debugPort != -1) {
             // Create remote configuration to attach debugger

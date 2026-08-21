@@ -112,31 +112,47 @@ public class LibertyExplorer extends SimpleToolWindowPanel {
         HashMap<String, ArrayList<Object>> projectMap = new HashMap<>();
 
         for (LibertyModule libertyModule : libertyModules.getLibertyModules(project)) {
-            LibertyModuleNode node = new LibertyModuleNode(libertyModule);
 
+            // Multi-module: child modules are rendered under their parent node, not at the
+            // top level. Skip them here; they are added when the parent is processed below.
+            if (libertyModule.getParentModule() != null) {
+                continue;
+            }
+
+            LibertyModuleNode node = new LibertyModuleNode(libertyModule);
             top.add(node);
+
             ArrayList<Object> settings = new ArrayList<Object>();
             settings.add(libertyModule.getBuildFile());
             settings.add(libertyModule.getProjectType());
             projectMap.put(libertyModule.getName(), settings);
 
-            // ordered to align with IntelliJ's right-click menu
-            node.add(new LibertyActionNode(Constants.LIBERTY_DEV_START, libertyModule));
-            // check if Liberty Maven Plugin is 3.3-M1+ or Liberty Gradle Plugin is 3.1-M1+
-            // if version is not specified in pom, assume latest version as downloaded from maven central
-            boolean validContainerVersion = libertyModule.isValidContainerVersion();
-            if (validContainerVersion) {
-                node.add(new LibertyActionNode(Constants.LIBERTY_DEV_START_CONTAINER, libertyModule));
-            }
-            node.add(new LibertyActionNode(Constants.LIBERTY_DEV_CUSTOM_START, libertyModule));
-            node.add(new LibertyActionNode(Constants.LIBERTY_DEV_STOP, libertyModule));
-            node.add(new LibertyActionNode(Constants.LIBERTY_DEV_TESTS, libertyModule));
-            if (libertyModule.getProjectType().equals(Constants.ProjectType.LIBERTY_MAVEN_PROJECT)) {
-                node.add(new LibertyActionNode(Constants.VIEW_INTEGRATION_TEST_REPORT, libertyModule));
-                node.add(new LibertyActionNode(Constants.VIEW_UNIT_TEST_REPORT, libertyModule));
+            if (libertyModule.isParentOfLibertyModule()) {
+                // Aggregator: add each child Liberty module as a child tree node with
+                // its own actions. The parent node itself does not get action children —
+                // actions are only meaningful on the concrete (leaf) modules.
+                for (LibertyModule childModule : libertyModule.getChildLibertyModules()) {
+                    LibertyModuleNode childNode = new LibertyModuleNode(childModule);
+                    node.add(childNode);
+
+                    ArrayList<Object> childSettings = new ArrayList<>();
+                    childSettings.add(childModule.getBuildFile());
+                    childSettings.add(childModule.getProjectType());
+                    projectMap.put(childModule.getName(), childSettings);
+
+                    addActionNodes(childNode, childModule);
+                }
             } else {
-                node.add(new LibertyActionNode(Constants.VIEW_GRADLE_TEST_REPORT, libertyModule));
+                // Standalone (non-aggregator) leaf module — add action nodes directly.
+                addActionNodes(node, libertyModule);
             }
+        }
+
+        // If the only modules in the workspace are child modules (all have parents),
+        // the loop above produced an empty tree. Return null so the "no projects" message
+        // is shown — this happens transiently during re-scan before the parent is linked.
+        if (top.getChildCount() == 0) {
+            return null;
         }
 
         Tree tree = new Tree(top);
@@ -151,13 +167,17 @@ public class LibertyExplorer extends SimpleToolWindowPanel {
         tree.addTreeSelectionListener(e -> {
             Object node = e.getPath().getLastPathComponent();
             if (node instanceof LibertyModuleNode libertyNode) {
-                // open build file
+                // open build file (works for both top-level and child module nodes)
                 FileEditorManager.getInstance(project).openTextEditor(new OpenFileDescriptor(project, libertyNode.getFilePath()), true);
                 treeDataProvider.saveData(libertyNode.getFilePath(), libertyNode.getName(), libertyNode.getProjectType());
             } else if (node instanceof LibertyActionNode) {
                 DefaultMutableTreeNode treeNode = (DefaultMutableTreeNode) node;
-                LibertyModuleNode parentNode = (LibertyModuleNode) treeNode.getParent();
-                treeDataProvider.saveData(parentNode.getFilePath(), parentNode.getName(), parentNode.getProjectType());
+                // The action node's parent is always the LibertyModuleNode it belongs to,
+                // regardless of whether that module node is top-level or nested under an aggregator.
+                javax.swing.tree.TreeNode parentTreeNode = treeNode.getParent();
+                if (parentTreeNode instanceof LibertyModuleNode parentNode) {
+                    treeDataProvider.saveData(parentNode.getFilePath(), parentNode.getName(), parentNode.getProjectType());
+                }
             }
         });
 
@@ -230,7 +250,34 @@ public class LibertyExplorer extends SimpleToolWindowPanel {
         // set tree icons and colours
         LibertyTreeRenderer libertyRenderer = new LibertyTreeRenderer(backgroundColor);
         tree.setCellRenderer(libertyRenderer);
+
+        // Expand all nodes so parent→child hierarchy is immediately visible.
+        for (int i = 0; i < tree.getRowCount(); i++) {
+            tree.expandRow(i);
+        }
+
         return tree;
+    }
+
+    /**
+     * Appends Liberty action child nodes to the given module tree node.
+     * Extracted to avoid duplicating the action-wiring logic for parent and child nodes.
+     */
+    private static void addActionNodes(LibertyModuleNode node, LibertyModule libertyModule) {
+        node.add(new LibertyActionNode(Constants.LIBERTY_DEV_START, libertyModule));
+        boolean validContainerVersion = libertyModule.isValidContainerVersion();
+        if (validContainerVersion) {
+            node.add(new LibertyActionNode(Constants.LIBERTY_DEV_START_CONTAINER, libertyModule));
+        }
+        node.add(new LibertyActionNode(Constants.LIBERTY_DEV_CUSTOM_START, libertyModule));
+        node.add(new LibertyActionNode(Constants.LIBERTY_DEV_STOP, libertyModule));
+        node.add(new LibertyActionNode(Constants.LIBERTY_DEV_TESTS, libertyModule));
+        if (libertyModule.getProjectType().equals(Constants.ProjectType.LIBERTY_MAVEN_PROJECT)) {
+            node.add(new LibertyActionNode(Constants.VIEW_INTEGRATION_TEST_REPORT, libertyModule));
+            node.add(new LibertyActionNode(Constants.VIEW_UNIT_TEST_REPORT, libertyModule));
+        } else {
+            node.add(new LibertyActionNode(Constants.VIEW_GRADLE_TEST_REPORT, libertyModule));
+        }
     }
 
     static class LibertyTreeRenderer extends DefaultTreeCellRenderer {
@@ -248,15 +295,8 @@ public class LibertyExplorer extends SimpleToolWindowPanel {
                 boolean hasFocus) {
             super.getTreeCellRendererComponent(tree, value, sel, expanded, leaf, row, hasFocus);
 
-            // assign gear icon to action nodes
-            if (leaf) {
-                setIcon(LibertyPluginIcons.IntelliJGear);
-                return this;
-            }
-
-            // select icon for node based on project type
-            if (value instanceof LibertyModuleNode) {
-                LibertyModuleNode moduleNode = (LibertyModuleNode) value;
+            // LibertyModuleNode: choose icon by build type (works for both top-level and child nodes)
+            if (value instanceof LibertyModuleNode moduleNode) {
                 if (moduleNode.isGradleProjectType()) {
                     setIcon(LibertyPluginIcons.gradleIcon);
                 } else if (moduleNode.isMavenProjectType()) {
@@ -264,6 +304,12 @@ public class LibertyExplorer extends SimpleToolWindowPanel {
                 } else {
                     setIcon(LibertyPluginIcons.libertyIcon);
                 }
+                return this;
+            }
+
+            // LibertyActionNode (leaf): gear icon
+            if (leaf) {
+                setIcon(LibertyPluginIcons.IntelliJGear);
             }
 
             return this;
