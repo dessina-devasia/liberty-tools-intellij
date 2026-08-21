@@ -50,4 +50,8 @@ public class LibertyModuleNode extends DefaultMutableTreeNode {
     public boolean isMavenProjectType() {
         return libertyModule.getProjectType().equals(Constants.ProjectType.LIBERTY_MAVEN_PROJECT);
     }
+
+    public LibertyModule getLibertyModule() {
+        return libertyModule;
+    }
 }

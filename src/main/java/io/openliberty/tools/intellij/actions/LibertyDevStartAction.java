@@ -13,6 +13,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
 import io.openliberty.tools.intellij.LibertyModule;
 import io.openliberty.tools.intellij.util.*;
+import io.openliberty.tools.intellij.util.LibertyTerminalWatcher;
 import static io.openliberty.tools.intellij.util.Constants.ProjectType.*;
 import static io.openliberty.tools.intellij.util.Constants.*;
 import static io.openliberty.tools.intellij.util.Constants.LIBERTY_GRADLE_DEBUG_PARAM;
@@ -145,8 +146,18 @@ public class LibertyDevStartAction extends LibertyGeneralAction {
             }
         }
 
+        // Mark the module as STARTING before launching the command so the tree
+        // icon updates immediately. A background watcher will promote the state to
+        // RUNNING once Liberty logs CWWKF0011I.
+        libertyModule.setAppState(LibertyModule.AppState.STARTING);
+
         String cdToProjectCmd = "cd \"" + executionDir + "\"";
         LibertyActionUtil.executeCommand(widget, cdToProjectCmd, startCmd);
+
+        // Register the terminal watcher AFTER the command is sent so the widget's
+        // TtyConnector is in the right state. The watcher runs on a pooled thread.
+        LibertyTerminalWatcher.watchForRunning(widget, libertyModule);
+
         if (libertyModule.isDebugMode() && debugPort != -1) {
             // Create remote configuration to attach debugger
             debugHandler.createAndRunDebugConfiguration(libertyModule, debugPort);

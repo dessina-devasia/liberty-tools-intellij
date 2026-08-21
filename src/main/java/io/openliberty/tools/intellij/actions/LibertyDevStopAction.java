@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2020, 2024 IBM Corporation.
+ * Copyright (c) 2020, 2026 IBM Corporation.
  *
  * This program and the accompanying materials are made available under the
  * terms of the Eclipse Public License v. 2.0 which is available at
@@ -13,6 +13,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
 import io.openliberty.tools.intellij.LibertyModule;
 import io.openliberty.tools.intellij.util.LibertyActionUtil;
+import io.openliberty.tools.intellij.util.LibertyTerminalWatcher;
 import io.openliberty.tools.intellij.util.LocalizedResourceUtil;
 import org.jetbrains.plugins.terminal.ShellTerminalWidget;
 
@@ -35,7 +36,14 @@ public class LibertyDevStopAction extends LibertyGeneralAction {
         if (widget == null) {
             return;
         }
+
+        // Transition to STOPPING immediately so the tree icon updates before the process exits.
+        libertyModule.setAppState(LibertyModule.AppState.STOPPING);
+
         String stopCmd = "q";
         LibertyActionUtil.executeCommand(widget, stopCmd);
+
+        // Watch for the process to finish; transitions to STOPPED when it does.
+        LibertyTerminalWatcher.watchForStopped(widget, libertyModule);
     }
 }

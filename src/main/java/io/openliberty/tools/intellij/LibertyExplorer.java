@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2020, 2025 IBM Corporation.
+ * Copyright (c) 2020, 2026 IBM Corporation.
  *
  * This program and the accompanying materials are made available under the
  * terms of the Eclipse Public License v. 2.0 which is available at
@@ -39,8 +39,10 @@ import java.awt.*;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
+import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 
 public class LibertyExplorer extends SimpleToolWindowPanel {
     private final static Logger LOGGER = Logger.getInstance(LibertyExplorer.class);
@@ -247,8 +249,9 @@ public class LibertyExplorer extends SimpleToolWindowPanel {
             }
         });
 
-        // set tree icons and colours
-        LibertyTreeRenderer libertyRenderer = new LibertyTreeRenderer(backgroundColor);
+        // set tree icons, colours and state-badge renderer
+        SpinnerAnimator spinner = new SpinnerAnimator(tree);
+        LibertyTreeRenderer libertyRenderer = new LibertyTreeRenderer(backgroundColor, spinner);
         tree.setCellRenderer(libertyRenderer);
 
         // Expand all nodes so parent→child hierarchy is immediately visible.
@@ -281,8 +284,12 @@ public class LibertyExplorer extends SimpleToolWindowPanel {
     }
 
     static class LibertyTreeRenderer extends DefaultTreeCellRenderer {
-        public LibertyTreeRenderer(Color backgroundColor) {
+
+        private final SpinnerAnimator spinner;
+
+        public LibertyTreeRenderer(Color backgroundColor, SpinnerAnimator spinner) {
             setBackgroundNonSelectionColor(backgroundColor);
+            this.spinner = spinner;
         }
 
         public Component getTreeCellRendererComponent(
@@ -293,19 +300,40 @@ public class LibertyExplorer extends SimpleToolWindowPanel {
                 boolean leaf,
                 int row,
                 boolean hasFocus) {
-            super.getTreeCellRendererComponent(tree, value, sel, expanded, leaf, row, hasFocus);
 
-            // LibertyModuleNode: choose icon by build type (works for both top-level and child nodes)
+            // LibertyModuleNode: composite icon = build-type badge + state overlay
             if (value instanceof LibertyModuleNode moduleNode) {
+                // 1. Resolve build-type badge icon
+                Icon badgeIcon;
                 if (moduleNode.isGradleProjectType()) {
-                    setIcon(LibertyPluginIcons.gradleIcon);
+                    badgeIcon = LibertyPluginIcons.gradleIcon;
                 } else if (moduleNode.isMavenProjectType()) {
-                    setIcon(LibertyPluginIcons.mavenIcon);
+                    badgeIcon = LibertyPluginIcons.mavenIcon;
                 } else {
-                    setIcon(LibertyPluginIcons.libertyIcon);
+                    badgeIcon = LibertyPluginIcons.libertyIcon;
                 }
+
+                // 2. Resolve state icon based on effective AppState
+                Icon stateIcon = resolveStateIcon(moduleNode, spinner);
+
+                // 3. Composite: badge on left, state on right, separated by 2px gap
+                Icon compositeIcon = new CompositeIcon(badgeIcon, stateIcon);
+
+                // 4. Update spinner animation loop
+                LibertyModule.AppState effectiveState = resolveEffectiveState(moduleNode.getLibertyModule());
+                boolean needsAnimation = effectiveState == LibertyModule.AppState.STARTING
+                        || effectiveState == LibertyModule.AppState.STOPPING;
+                spinner.setActive(needsAnimation || anyChildNeedsAnimation(moduleNode.getLibertyModule()));
+
+                setOpenIcon(compositeIcon);
+                setClosedIcon(compositeIcon);
+                setLeafIcon(compositeIcon);
+                super.getTreeCellRendererComponent(tree, value, sel, expanded, leaf, row, hasFocus);
+                setIcon(compositeIcon);
                 return this;
             }
+
+            super.getTreeCellRendererComponent(tree, value, sel, expanded, leaf, row, hasFocus);
 
             // LibertyActionNode (leaf): gear icon
             if (leaf) {
@@ -313,6 +341,91 @@ public class LibertyExplorer extends SimpleToolWindowPanel {
             }
 
             return this;
+        }
+
+        /**
+         * Resolves the effective {@link LibertyModule.AppState} for display.
+         * For aggregators, derives a combined state from all children, mirroring
+         * {@code DashboardEntryLabelProvider.resolveEffectiveState} in Eclipse.
+         * Returns {@code null} when children are in a mixed state (incomplete).
+         */
+        private static LibertyModule.AppState resolveEffectiveState(LibertyModule module) {
+            List<LibertyModule> children = module.getChildLibertyModules();
+            if (children.isEmpty()) {
+                return module.getAppState();
+            }
+            int running = 0, starting = 0, stopping = 0;
+            int total = children.size();
+            for (LibertyModule child : children) {
+                switch (child.getAppState()) {
+                    case RUNNING  -> running++;
+                    case STARTING -> starting++;
+                    case STOPPING -> stopping++;
+                    default       -> {} // STOPPED
+                }
+            }
+            if (running + starting + stopping == 0) return LibertyModule.AppState.STOPPED;
+            if (starting > 0)                       return LibertyModule.AppState.STARTING;
+            if (stopping > 0)                       return LibertyModule.AppState.STOPPING;
+            if (running == total)                   return LibertyModule.AppState.RUNNING;
+            return null; // mixed / incomplete
+        }
+
+        /**
+         * Picks the correct state icon, using the spinner's current frame for
+         * STARTING and STOPPING states.
+         */
+        private static Icon resolveStateIcon(LibertyModuleNode moduleNode, SpinnerAnimator spinner) {
+            LibertyModule.AppState state = resolveEffectiveState(moduleNode.getLibertyModule());
+            if (state == null)                         return LibertyPluginIcons.incompleteIcon();
+            return switch (state) {
+                case RUNNING  -> LibertyPluginIcons.runningIcon();
+                case STARTING -> spinner.currentFrame();
+                case STOPPING -> spinner.currentFrame();
+                case STOPPED  -> LibertyPluginIcons.stoppedIcon();
+            };
+        }
+
+        /** Returns true when any child of the given module is STARTING or STOPPING. */
+        private static boolean anyChildNeedsAnimation(LibertyModule module) {
+            for (LibertyModule child : module.getChildLibertyModules()) {
+                LibertyModule.AppState s = child.getAppState();
+                if (s == LibertyModule.AppState.STARTING || s == LibertyModule.AppState.STOPPING) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /**
+         * A lightweight {@link Icon} that paints two icons side-by-side:
+         * the build-type badge on the left and the state indicator on the right,
+         * separated by a 2 px gap.
+         */
+        private static class CompositeIcon implements Icon {
+            private final Icon left;
+            private final Icon right;
+            private static final int GAP = 2;
+
+            CompositeIcon(Icon left, Icon right) {
+                this.left  = left;
+                this.right = right;
+            }
+
+            @Override
+            public void paintIcon(Component c, Graphics g, int x, int y) {
+                int leftH  = left.getIconHeight();
+                int rightH = right.getIconHeight();
+                int totalH = getIconHeight();
+                // Vertically center each icon within the composite height
+                int leftY  = y + (totalH - leftH)  / 2;
+                int rightY = y + (totalH - rightH) / 2;
+                left.paintIcon(c, g, x, leftY);
+                right.paintIcon(c, g, x + left.getIconWidth() + GAP, rightY);
+            }
+
+            @Override public int getIconWidth()  { return left.getIconWidth() + GAP + right.getIconWidth(); }
+            @Override public int getIconHeight() { return Math.max(left.getIconHeight(), right.getIconHeight()); }
         }
     }
 
