@@ -53,10 +53,23 @@ public class LibertyDevStartAction extends LibertyGeneralAction {
         DebugModeHandler debugHandler = new DebugModeHandler();
         String buildSettingsCmd;
         try {
-            if(projectType.equals(LIBERTY_MAVEN_PROJECT)) {
-                buildSettingsCmd = LibertyMavenUtil.getMavenSettingsCmd(project, buildFile);
+            if (projectType.equals(LIBERTY_MAVEN_PROJECT)) {
+                // For child modules the wrapper (mvnw) lives in the parent/execution directory,
+                // not in the child's own directory. Pass the parent's build file so that
+                // getMavenSettingsCmd looks for mvnw in the right place.
+                VirtualFile settingsBuildFile = (libertyModule.getParentModule() != null
+                        && libertyModule.getParentModule().getBuildFile() != null)
+                        ? libertyModule.getParentModule().getBuildFile()
+                        : buildFile;
+                buildSettingsCmd = LibertyMavenUtil.getMavenSettingsCmd(project, settingsBuildFile);
             } else {
-                buildSettingsCmd = LibertyGradleUtil.getGradleSettingsCmd(project, buildFile);
+                // For Gradle child modules, getGradleSettingsCmd needs the root project path.
+                // GradleSettings is keyed by the root project path (parent dir), not the child's.
+                VirtualFile settingsBuildFile = (libertyModule.getParentModule() != null
+                        && libertyModule.getParentModule().getBuildFile() != null)
+                        ? libertyModule.getParentModule().getBuildFile()
+                        : buildFile;
+                buildSettingsCmd = LibertyGradleUtil.getGradleSettingsCmd(project, settingsBuildFile);
             }
         } catch (LibertyException ex) {
             // in this case, the settings specified to mvn or gradle are invalid and an error was launched by getMavenSettingsCmd or getGradleSettingsCmd.
