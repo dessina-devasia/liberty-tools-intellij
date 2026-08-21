@@ -17,16 +17,17 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BooleanSupplier;
 
 /**
  * Drives the STARTING/STOPPING in-progress spinner animation for the Liberty tool window tree.
  *
  * <p>Mirrors {@code SpinnerAnimator} from liberty-tools-eclipse. Cycles through
- * {@link #FRAME_COUNT} PNG frames at ~10 fps. When active modules exist, schedules a
- * repeating timer that advances the frame index and asks the tree to repaint; when
- * no animated modules remain the timer is stopped.</p>
+ * {@link #FRAME_COUNT} SVG frames at ~10 fps. The animation loop starts when
+ * {@link #start(BooleanSupplier)} is called and auto-stops on each tick when the supplied
+ * {@code keepAlive} predicate returns {@code false}.</p>
  *
- * <p>Call {@link #setActive(boolean)} to start or stop the animation loop.
+ * <p>Call {@link #start(BooleanSupplier)} to begin the animation.
  * Call {@link #currentFrame()} from the tree renderer to get the icon for the current frame.
  * Call {@link #dispose()} when the tool window is torn down.</p>
  */
@@ -36,11 +37,12 @@ public class SpinnerAnimator {
     public static final int FRAME_COUNT = 12;
 
     /** Delay between frames in milliseconds (~10 fps). */
-    private static final int FRAME_DELAY_MS = 100;
+    static final int FRAME_DELAY_MS = 100;
 
     private final Tree tree;
     private final AtomicInteger frameIndex = new AtomicInteger(0);
     private volatile ScheduledFuture<?> scheduledFuture;
+    private volatile BooleanSupplier keepAlive;
     private final ScheduledThreadPoolExecutor executor;
 
     /** Pre-loaded spinner frame icons indexed 0..FRAME_COUNT-1. */
@@ -76,17 +78,21 @@ public class SpinnerAnimator {
     }
 
     /**
-     * Starts the animation timer when {@code active} is {@code true},
-     * or stops it when {@code false}.
+     * Starts the animation loop if it is not already running.
      *
-     * <p>Safe to call from any thread. Multiple calls with the same value are no-ops.</p>
+     * <p>On every tick the {@code keepAlive} predicate is evaluated. When it returns
+     * {@code false} the loop stops automatically — no explicit stop call is needed from
+     * the renderer. Calling {@code start()} while the loop is already running replaces
+     * the predicate so the existing tick continues with the new check.</p>
+     *
+     * <p>Safe to call from any thread.</p>
+     *
+     * @param keepAlive Returns {@code true} while at least one module still needs animation.
      */
-    public synchronized void setActive(boolean active) {
-        if (active && scheduledFuture == null) {
+    public synchronized void start(BooleanSupplier keepAlive) {
+        this.keepAlive = keepAlive;
+        if (scheduledFuture == null) {
             scheduledFuture = executor.scheduleAtFixedRate(this::tick, 0, FRAME_DELAY_MS, TimeUnit.MILLISECONDS);
-        } else if (!active && scheduledFuture != null) {
-            scheduledFuture.cancel(false);
-            scheduledFuture = null;
         }
     }
 
@@ -99,7 +105,12 @@ public class SpinnerAnimator {
      * Releases resources. Must be called when the tool window is disposed.
      */
     public void dispose() {
-        setActive(false);
+        synchronized (this) {
+            if (scheduledFuture != null) {
+                scheduledFuture.cancel(false);
+                scheduledFuture = null;
+            }
+        }
         executor.shutdownNow();
     }
 
@@ -108,8 +119,24 @@ public class SpinnerAnimator {
     // -------------------------------------------------------------------------
 
     private void tick() {
+        // Stop if no module still needs animation.
+        BooleanSupplier check = this.keepAlive;
+        if (check == null || !check.getAsBoolean()) {
+            synchronized (this) {
+                if (scheduledFuture != null) {
+                    scheduledFuture.cancel(false);
+                    scheduledFuture = null;
+                }
+            }
+            // One final repaint so the tree shows the settled icon.
+            repaintTree();
+            return;
+        }
         frameIndex.updateAndGet(i -> (i + 1) % FRAME_COUNT);
-        // Repaint the tree on the EDT.
+        repaintTree();
+    }
+
+    private void repaintTree() {
         ApplicationManager.getApplication().invokeLater(() -> {
             if (tree != null && tree.isShowing()) {
                 tree.repaint();

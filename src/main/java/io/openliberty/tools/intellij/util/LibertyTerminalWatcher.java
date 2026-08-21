@@ -23,8 +23,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *
  * <ul>
  *   <li>{@link #watchForRunning} — registers a {@link TerminalModelListener} on the
- *       terminal text buffer; when {@code CWWKF0011I} (Liberty started) appears in the
- *       screen output the module's state is promoted to {@code RUNNING}.</li>
+ *       terminal text buffer. It captures a baseline of the current screen content so
+ *       that {@code CWWKF0011I} messages from a previous run are ignored. When the
+ *       message appears in <em>new</em> output the module's state is promoted to
+ *       {@code RUNNING}.</li>
  *   <li>{@link #watchForStopped} — polls {@link ShellTerminalWidget#hasRunningCommands()}
  *       on a background thread; when the process exits the module's state is set to
  *       {@code STOPPED}.</li>
@@ -51,8 +53,10 @@ public final class LibertyTerminalWatcher {
 
     /**
      * Registers a {@link TerminalModelListener} on the terminal's text buffer.
-     * When the Liberty "server started" message ({@code CWWKF0011I}) appears,
-     * the module's state is promoted to {@code RUNNING}.
+     * A snapshot of the current screen text is captured as a baseline so that any
+     * {@code CWWKF0011I} from a previous run is not mistaken for a new start.
+     * When the message appears in output written <em>after</em> this call, the module's
+     * state is promoted to {@code RUNNING}.
      *
      * <p>Safe to call from any thread.</p>
      *
@@ -62,20 +66,49 @@ public final class LibertyTerminalWatcher {
     public static void watchForRunning(ShellTerminalWidget widget, LibertyModule libertyModule) {
         AtomicBoolean triggered = new AtomicBoolean(false);
 
-        // Hold the listener in a one-element array so the lambda can reference it.
+        // Capture the current screen text as a baseline on the EDT (getText() is a Swing call).
+        // The listener will only fire when the screen text changes beyond this baseline.
+        final String[] baselineHolder = new String[1];
+        if (ApplicationManager.getApplication().isDispatchThread()) {
+            baselineHolder[0] = safeGetText(widget);
+        } else {
+            ApplicationManager.getApplication().invokeAndWait(() ->
+                baselineHolder[0] = safeGetText(widget)
+            );
+        }
+        final String baseline = baselineHolder[0] != null ? baselineHolder[0] : "";
+
+        // Hold the listener in a one-element array so the lambda can self-reference.
         TerminalModelListener[] holderRef = new TerminalModelListener[1];
         holderRef[0] = () -> {
             if (triggered.get()) return;
 
-            // getText() reads the visible screen; run off the EDT to avoid blocking it.
-            ApplicationManager.getApplication().executeOnPooledThread(() -> {
+            // getText() must be called on the EDT.
+            ApplicationManager.getApplication().invokeLater(() -> {
                 if (triggered.get()) return;
                 try {
-                    String screen = widget.getText();
-                    if (screen != null && screen.contains(LIBERTY_STARTED_MSG)) {
+                    String current = safeGetText(widget);
+                    if (current == null) return;
+
+                    // Only count CWWKF0011I that appeared *after* the baseline snapshot.
+                    // If the message was already present before we started watching, ignore it.
+                    if (current.contains(LIBERTY_STARTED_MSG) && !baseline.contains(LIBERTY_STARTED_MSG)) {
                         if (triggered.compareAndSet(false, true)) {
                             widget.getTerminalTextBuffer().removeModelListener(holderRef[0]);
                             setStateAndRefresh(libertyModule, LibertyModule.AppState.RUNNING);
+                        }
+                    } else if (current.contains(LIBERTY_STARTED_MSG) && !current.equals(baseline)) {
+                        // The message was in the baseline too, but the screen has since scrolled /
+                        // refreshed — check that the occurrence is at a different position by
+                        // comparing the full texts. If new content was added AND CWWKF0011I
+                        // appears somewhere after the old baseline length, treat it as a new start.
+                        int baseLen = baseline.length();
+                        String newPart = current.length() > baseLen ? current.substring(baseLen) : "";
+                        if (newPart.contains(LIBERTY_STARTED_MSG)) {
+                            if (triggered.compareAndSet(false, true)) {
+                                widget.getTerminalTextBuffer().removeModelListener(holderRef[0]);
+                                setStateAndRefresh(libertyModule, LibertyModule.AppState.RUNNING);
+                            }
                         }
                     }
                 } catch (Exception ex) {
@@ -132,6 +165,16 @@ public final class LibertyTerminalWatcher {
     // -------------------------------------------------------------------------
     // Internal helpers
     // -------------------------------------------------------------------------
+
+    /** Calls {@link ShellTerminalWidget#getText()} guarding against exceptions. */
+    private static String safeGetText(ShellTerminalWidget widget) {
+        try {
+            return widget.getText();
+        } catch (Exception ex) {
+            LOGGER.debug("LibertyTerminalWatcher: getText() failed", ex);
+            return "";
+        }
+    }
 
     /**
      * Updates the module's state and requests a UI refresh on the EDT.

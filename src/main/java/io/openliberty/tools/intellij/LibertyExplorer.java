@@ -314,11 +314,14 @@ public class LibertyExplorer extends SimpleToolWindowPanel {
                 // 3. Composite: badge on left, state on right, separated by 2px gap
                 Icon compositeIcon = new CompositeIcon(badgeIcon, stateIcon);
 
-                // 4. Update spinner animation loop
-                LibertyModule.AppState effectiveState = resolveEffectiveState(moduleNode.getLibertyModule());
-                boolean needsAnimation = effectiveState == LibertyModule.AppState.STARTING
-                        || effectiveState == LibertyModule.AppState.STOPPING;
-                spinner.setActive(needsAnimation || anyChildNeedsAnimation(moduleNode.getLibertyModule()));
+                // 4. Start spinner animation if this module (or any of its children) needs it.
+                // Never call setActive(false) here — the SpinnerAnimator stops itself
+                // on each tick when the keepAlive predicate returns false, preventing a
+                // later non-animated node from cancelling another module's animation.
+                LibertyModule lm = moduleNode.getLibertyModule();
+                if (needsSpinner(lm)) {
+                    spinner.start(() -> anyModuleNeedsAnimation(tree));
+                }
 
                 setOpenIcon(compositeIcon);
                 setClosedIcon(compositeIcon);
@@ -381,13 +384,31 @@ public class LibertyExplorer extends SimpleToolWindowPanel {
             };
         }
 
-        /** Returns true when any child of the given module is STARTING or STOPPING. */
-        private static boolean anyChildNeedsAnimation(LibertyModule module) {
-            for (LibertyModule child : module.getChildLibertyModules()) {
-                LibertyModule.AppState s = child.getAppState();
-                if (s == LibertyModule.AppState.STARTING || s == LibertyModule.AppState.STOPPING) {
-                    return true;
-                }
+        /** Returns {@code true} when this module (or any of its children) needs the spinner. */
+        private static boolean needsSpinner(LibertyModule module) {
+            LibertyModule.AppState state = resolveEffectiveState(module);
+            return state == LibertyModule.AppState.STARTING || state == LibertyModule.AppState.STOPPING;
+        }
+
+        /**
+         * Returns {@code true} when *any* LibertyModuleNode in the tree currently needs the
+         * spinner animation. Used as the {@code keepAlive} predicate passed to
+         * {@link SpinnerAnimator#start} so the animator auto-stops when all modules settle.
+         */
+        private static boolean anyModuleNeedsAnimation(JTree tree) {
+            javax.swing.tree.TreeModel model = tree.getModel();
+            if (model == null) return false;
+            Object root = model.getRoot();
+            return subtreeNeedsAnimation(model, root);
+        }
+
+        private static boolean subtreeNeedsAnimation(javax.swing.tree.TreeModel model, Object node) {
+            if (node instanceof LibertyModuleNode moduleNode) {
+                if (needsSpinner(moduleNode.getLibertyModule())) return true;
+            }
+            int childCount = model.getChildCount(node);
+            for (int i = 0; i < childCount; i++) {
+                if (subtreeNeedsAnimation(model, model.getChild(node, i))) return true;
             }
             return false;
         }
