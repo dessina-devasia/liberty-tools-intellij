@@ -177,11 +177,8 @@ public final class LibertyTerminalWatcher {
     }
 
     /**
-     * Updates the module's state and requests a UI refresh on the EDT.
-     * The {@link io.openliberty.tools.intellij.SpinnerAnimator} already repaints the
-     * tree every 100 ms while an animation is active. For non-animated transitions
-     * (→ RUNNING, → STOPPED) we repaint all visible top-level windows so the icon
-     * updates immediately.
+     * Updates the module's state and requests a UI refresh on the EDT,
+     * repainting all visible top-level windows so the icon updates immediately.
      */
     private static void setStateAndRefresh(LibertyModule libertyModule, LibertyModule.AppState newState) {
         libertyModule.setAppState(newState);

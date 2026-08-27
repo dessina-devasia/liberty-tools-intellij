@@ -43,13 +43,4 @@ public interface LibertyPluginIcons {
     /** Incomplete state: blue half-filled circle (some children running, some not). */
     static Icon incompleteIcon() { return stateIcon("incomplete"); }
 
-    // -------------------------------------------------------------------------
-    // Spinner frames for the STARTING animation (12 frames, ~10 fps)
-    // -------------------------------------------------------------------------
-
-    static Icon spinnerFrame(int frameIndex) {
-        return IconLoader.getIcon(
-                "/icons/spinners/state/state_in_progress_" + frameIndex + "_8.svg",
-                LibertyPluginIcons.class);
-    }
 }

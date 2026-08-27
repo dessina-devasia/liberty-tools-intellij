@@ -250,8 +250,7 @@ public class LibertyExplorer extends SimpleToolWindowPanel {
         });
 
         // set tree icons, colours and state-badge renderer
-        SpinnerAnimator spinner = new SpinnerAnimator(tree);
-        LibertyTreeRenderer libertyRenderer = new LibertyTreeRenderer(backgroundColor, spinner);
+        LibertyTreeRenderer libertyRenderer = new LibertyTreeRenderer(backgroundColor);
         tree.setCellRenderer(libertyRenderer);
 
         return tree;
@@ -280,11 +279,8 @@ public class LibertyExplorer extends SimpleToolWindowPanel {
 
     static class LibertyTreeRenderer extends DefaultTreeCellRenderer {
 
-        private final SpinnerAnimator spinner;
-
-        public LibertyTreeRenderer(Color backgroundColor, SpinnerAnimator spinner) {
+        public LibertyTreeRenderer(Color backgroundColor) {
             setBackgroundNonSelectionColor(backgroundColor);
-            this.spinner = spinner;
         }
 
         public Component getTreeCellRendererComponent(
@@ -296,17 +292,16 @@ public class LibertyExplorer extends SimpleToolWindowPanel {
                 int row,
                 boolean hasFocus) {
 
-            // LibertyModuleNode: composite icon = build-type badge + state overlay
+            // LibertyModuleNode: badge icon (root only) + state icon
             if (value instanceof LibertyModuleNode moduleNode) {
                 LibertyModule lm = moduleNode.getLibertyModule();
 
                 // 1. Resolve state icon based on effective AppState
-                Icon stateIcon = resolveStateIcon(moduleNode, spinner);
+                Icon stateIcon = resolveStateIcon(moduleNode);
 
                 // 2. Build the node icon.
-                //    Root modules show the build-type badge (Maven/Gradle) alongside the state icon.
-                //    Child (sub-project) modules show only the state icon — no badge needed
-                //    because the parent node already identifies the build type.
+                //    Root modules: build-type badge (Maven/Gradle) + state icon side-by-side.
+                //    Child (sub-project) modules: state icon only.
                 final Icon compositeIcon;
                 if (lm.getParentModule() == null) {
                     Icon badgeIcon;
@@ -320,14 +315,6 @@ public class LibertyExplorer extends SimpleToolWindowPanel {
                     compositeIcon = new CompositeIcon(badgeIcon, stateIcon);
                 } else {
                     compositeIcon = stateIcon;
-                }
-
-                // 3. Start spinner animation if this module (or any of its children) needs it.
-                // Never call setActive(false) here — the SpinnerAnimator stops itself
-                // on each tick when the keepAlive predicate returns false, preventing a
-                // later non-animated node from cancelling another module's animation.
-                if (needsSpinner(lm)) {
-                    spinner.start(() -> anyModuleNeedsAnimation(tree));
                 }
 
                 setOpenIcon(compositeIcon);
@@ -377,47 +364,18 @@ public class LibertyExplorer extends SimpleToolWindowPanel {
         }
 
         /**
-         * Picks the correct state icon, using the spinner's current frame for
-         * STARTING and STOPPING states.
+         * Picks the correct state icon, mirroring Eclipse's DashboardEntryLabelProvider:
+         * STARTING → starting.svg, STOPPING → stopping.svg.
          */
-        private static Icon resolveStateIcon(LibertyModuleNode moduleNode, SpinnerAnimator spinner) {
+        private static Icon resolveStateIcon(LibertyModuleNode moduleNode) {
             LibertyModule.AppState state = resolveEffectiveState(moduleNode.getLibertyModule());
             if (state == null)                         return LibertyPluginIcons.incompleteIcon();
             return switch (state) {
                 case RUNNING  -> LibertyPluginIcons.runningIcon();
-                case STARTING -> spinner.currentFrame();
-                case STOPPING -> spinner.currentFrame();
+                case STARTING -> LibertyPluginIcons.startingIcon();
+                case STOPPING -> LibertyPluginIcons.stoppingIcon();
                 case STOPPED  -> LibertyPluginIcons.stoppedIcon();
             };
-        }
-
-        /** Returns {@code true} when this module (or any of its children) needs the spinner. */
-        private static boolean needsSpinner(LibertyModule module) {
-            LibertyModule.AppState state = resolveEffectiveState(module);
-            return state == LibertyModule.AppState.STARTING || state == LibertyModule.AppState.STOPPING;
-        }
-
-        /**
-         * Returns {@code true} when *any* LibertyModuleNode in the tree currently needs the
-         * spinner animation. Used as the {@code keepAlive} predicate passed to
-         * {@link SpinnerAnimator#start} so the animator auto-stops when all modules settle.
-         */
-        private static boolean anyModuleNeedsAnimation(JTree tree) {
-            javax.swing.tree.TreeModel model = tree.getModel();
-            if (model == null) return false;
-            Object root = model.getRoot();
-            return subtreeNeedsAnimation(model, root);
-        }
-
-        private static boolean subtreeNeedsAnimation(javax.swing.tree.TreeModel model, Object node) {
-            if (node instanceof LibertyModuleNode moduleNode) {
-                if (needsSpinner(moduleNode.getLibertyModule())) return true;
-            }
-            int childCount = model.getChildCount(node);
-            for (int i = 0; i < childCount; i++) {
-                if (subtreeNeedsAnimation(model, model.getChild(node, i))) return true;
-            }
-            return false;
         }
 
         /**
