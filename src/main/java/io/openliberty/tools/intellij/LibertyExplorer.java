@@ -298,27 +298,34 @@ public class LibertyExplorer extends SimpleToolWindowPanel {
 
             // LibertyModuleNode: composite icon = build-type badge + state overlay
             if (value instanceof LibertyModuleNode moduleNode) {
-                // 1. Resolve build-type badge icon
-                Icon badgeIcon;
-                if (moduleNode.isGradleProjectType()) {
-                    badgeIcon = LibertyPluginIcons.gradleIcon;
-                } else if (moduleNode.isMavenProjectType()) {
-                    badgeIcon = LibertyPluginIcons.mavenIcon;
-                } else {
-                    badgeIcon = LibertyPluginIcons.libertyIcon;
-                }
+                LibertyModule lm = moduleNode.getLibertyModule();
 
-                // 2. Resolve state icon based on effective AppState
+                // 1. Resolve state icon based on effective AppState
                 Icon stateIcon = resolveStateIcon(moduleNode, spinner);
 
-                // 3. Composite: badge on left, state on right, separated by 2px gap
-                Icon compositeIcon = new CompositeIcon(badgeIcon, stateIcon);
+                // 2. Build the node icon.
+                //    Root modules show the build-type badge (Maven/Gradle) alongside the state icon.
+                //    Child (sub-project) modules show only the state icon — no badge needed
+                //    because the parent node already identifies the build type.
+                final Icon compositeIcon;
+                if (lm.getParentModule() == null) {
+                    Icon badgeIcon;
+                    if (moduleNode.isGradleProjectType()) {
+                        badgeIcon = LibertyPluginIcons.gradleIcon;
+                    } else if (moduleNode.isMavenProjectType()) {
+                        badgeIcon = LibertyPluginIcons.mavenIcon;
+                    } else {
+                        badgeIcon = LibertyPluginIcons.libertyIcon;
+                    }
+                    compositeIcon = new CompositeIcon(badgeIcon, stateIcon);
+                } else {
+                    compositeIcon = stateIcon;
+                }
 
-                // 4. Start spinner animation if this module (or any of its children) needs it.
+                // 3. Start spinner animation if this module (or any of its children) needs it.
                 // Never call setActive(false) here — the SpinnerAnimator stops itself
                 // on each tick when the keepAlive predicate returns false, preventing a
                 // later non-animated node from cancelling another module's animation.
-                LibertyModule lm = moduleNode.getLibertyModule();
                 if (needsSpinner(lm)) {
                     spinner.start(() -> anyModuleNeedsAnimation(tree));
                 }
