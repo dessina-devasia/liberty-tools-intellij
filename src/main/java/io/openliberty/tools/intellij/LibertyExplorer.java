@@ -299,12 +299,12 @@ public class LibertyExplorer extends SimpleToolWindowPanel {
             if (value instanceof LibertyModuleNode moduleNode) {
                 LibertyModule lm = moduleNode.getLibertyModule();
 
-                // 1. Resolve state icon based on effective AppState
+                // Resolve state icon based on effective AppState
                 Icon stateIcon = resolveStateIcon(moduleNode);
 
-                // 2. Build the node icon.
-                //    Root modules: build-type badge (Maven/Gradle) + state icon side-by-side.
-                //    Child (sub-project) modules: state icon only.
+                // Build the node icon.
+                // Root modules: build-type badge (Maven/Gradle) + state icon side-by-side.
+                // Child (sub-project) modules: state icon only.
                 final Icon compositeIcon;
                 if (lm.getParentModule() == null) {
                     Icon badgeIcon;
@@ -325,7 +325,7 @@ public class LibertyExplorer extends SimpleToolWindowPanel {
                 setLeafIcon(compositeIcon);
                 super.getTreeCellRendererComponent(tree, value, sel, expanded, leaf, row, hasFocus);
                 setIcon(compositeIcon);
-                // 3. State tooltip — mirrors Eclipse stateTooltipText()
+                // State tooltip
                 setToolTipText(resolveStateTooltip(lm));
                 return this;
             }
@@ -343,8 +343,7 @@ public class LibertyExplorer extends SimpleToolWindowPanel {
 
         /**
          * Resolves the effective {@link LibertyModule.AppState} for display.
-         * For aggregators, derives a combined state from all children, mirroring
-         * {@code DashboardEntryLabelProvider.resolveEffectiveState} in Eclipse.
+         * For aggregators, derives a combined state from all children.
          * Returns {@code null} when children are in a mixed state (incomplete).
          */
         private static LibertyModule.AppState resolveEffectiveState(LibertyModule module) {
@@ -370,7 +369,7 @@ public class LibertyExplorer extends SimpleToolWindowPanel {
         }
 
         /**
-         * Picks the correct state icon, mirroring Eclipse's DashboardEntryLabelProvider:
+         * Picks the correct state icon
          * STARTING → starting.svg, STOPPING → stopping.svg.
          */
         private static Icon resolveStateIcon(LibertyModuleNode moduleNode) {
@@ -385,8 +384,7 @@ public class LibertyExplorer extends SimpleToolWindowPanel {
         }
 
         /**
-         * Returns the tooltip text for the state icon, mirroring Eclipse's
-         * {@code DashboardEntryLabelProvider.stateTooltipText()}:
+         * Returns the tooltip text for the state icon
          * <ul>
          *   <li>Leaf module → simple state name ("Running", "Starting...", etc.)</li>
          *   <li>Aggregator, all children same state → simple state name</li>

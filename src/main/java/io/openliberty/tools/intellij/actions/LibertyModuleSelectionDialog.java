@@ -104,7 +104,7 @@ public class LibertyModuleSelectionDialog extends DialogWrapper {
     }
 
     /**
-     * Builds a human-readable display string for a module.
+     * Builds a display string for a module.
      * Appends the parent-relative directory name when it differs from the module name
      * so users can distinguish identically-named modules in different subdirectories.
      */

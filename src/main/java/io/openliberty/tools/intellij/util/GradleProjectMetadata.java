@@ -118,7 +118,7 @@ public class GradleProjectMetadata implements LibertyProjectMetadata {
     }
 
     // -------------------------------------------------------------------------
-    // LibertyProjectMetadata contract
+    // LibertyProjectMetadata
     // -------------------------------------------------------------------------
 
     @Override
@@ -227,14 +227,6 @@ public class GradleProjectMetadata implements LibertyProjectMetadata {
      * Parses the settings file in {@code projectDir} and returns the list of subproject
      * directory names declared via {@code include} statements.
      *
-     * All of the following forms are handled:
-     * <pre>
-     *   include 'web', 'ejb'
-     *   include('web', 'ejb')
-     *   include ':web', ':ejb'
-     *   include(":web")
-     *   include("web")
-     * </pre>
      * Custom {@code projectDir} remappings are applied so the returned names are actual
      * filesystem directory names.
      */
@@ -407,7 +399,7 @@ public class GradleProjectMetadata implements LibertyProjectMetadata {
 
     /**
      * Scans a build file for an {@code allprojects} or {@code subprojects} block that
-     * contains a Liberty plugin application pattern. Uses brace-depth tracking.
+     * contains a Liberty plugin application pattern.
      */
     private boolean isLibertyPluginInAllOrSubprojectsBlock(String buildFilePathStr) {
         try (BufferedReader reader = new BufferedReader(new FileReader(buildFilePathStr))) {

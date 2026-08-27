@@ -64,7 +64,7 @@ public class MavenProjectMetadata implements LibertyProjectMetadata {
     }
 
     // -------------------------------------------------------------------------
-    // LibertyProjectMetadata contract
+    // LibertyProjectMetadata
     // -------------------------------------------------------------------------
 
     @Override

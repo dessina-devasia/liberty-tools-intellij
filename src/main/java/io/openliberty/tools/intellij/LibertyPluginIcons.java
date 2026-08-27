@@ -23,7 +23,6 @@ public interface LibertyPluginIcons {
 
     // -------------------------------------------------------------------------
     // State icons — light/dark variants auto-selected via isDarkTheme()
-    // Mirrors the Eclipse DashboardEntryLabelProvider icon set.
     // -------------------------------------------------------------------------
 
     static Icon stateIcon(String name) {

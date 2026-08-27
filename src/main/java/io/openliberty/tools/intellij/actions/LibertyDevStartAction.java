@@ -112,8 +112,7 @@ public class LibertyDevStartAction extends LibertyGeneralAction {
         libertyModule.setUseCustom(false);
 
         // For child modules in a multi-module build, run from the parent directory and
-        // append the module selector argument (-pl :name -am for Maven,
-        // :subproject:task prefix for Gradle). The buildSettingsCmd already contains the
+        // append the module selector argument. The buildSettingsCmd already contains the
         // correct wrapper/executable; we only need to adjust the working directory and
         // append the module selector.
         String executionDir;

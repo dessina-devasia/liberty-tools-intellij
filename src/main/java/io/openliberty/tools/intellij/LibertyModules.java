@@ -110,7 +110,7 @@ public class LibertyModules {
                 addLibertyModule(new LibertyModule(project, virtualFile, projectName, buildFile.getProjectType(), validContainerVersion));
             }
 
-            // Second pass: attach per-module build metadata and link parent → child relationships.
+            // Attach per-module build metadata and link parent → child relationships.
             buildMultiModuleRelationships(project);
         }
         return this;
@@ -120,7 +120,6 @@ public class LibertyModules {
      * Parses each module's build file to extract multi-module metadata, then links
      * aggregator (parent) modules to their Liberty leaf child modules.
      *
-     * <p>The algorithm mirrors the Eclipse WorkspaceModel two-pass approach:</p>
      * <ol>
      *   <li>Parse every module's build file and store {@link LibertyProjectMetadata}.</li>
      *   <li>For each module that declares a parent, wire the relationship; for each
@@ -134,7 +133,7 @@ public class LibertyModules {
         List<LibertyModule> modules = new ArrayList<>(libertyModules.values());
         modules.removeIf(m -> !project.equals(m.getProject()));
 
-        // -- Pass 1: parse build metadata for every module --
+        // Parse build metadata for every module
         // Index by BOTH the display name (set by the scan) AND the build-file artifactId/rootProject.name
         // (from metadata) to cover the case where the two differ.
         Map<String, LibertyModule> byName = new HashMap<>();
@@ -162,7 +161,7 @@ public class LibertyModules {
             }
         }
 
-        // -- Pass 2: link parent ↔ child relationships --
+        // Link parent <-> child relationships
         for (LibertyModule module : modules) {
             LibertyProjectMetadata metadata = module.getBuildMetadata();
             if (metadata == null) continue;
