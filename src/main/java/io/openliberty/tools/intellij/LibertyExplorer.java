@@ -253,6 +253,9 @@ public class LibertyExplorer extends SimpleToolWindowPanel {
         LibertyTreeRenderer libertyRenderer = new LibertyTreeRenderer(backgroundColor);
         tree.setCellRenderer(libertyRenderer);
 
+        // Enable per-row tooltips — Swing reads setToolTipText() from the renderer component.
+        javax.swing.ToolTipManager.sharedInstance().registerComponent(tree);
+
         return tree;
     }
 
@@ -292,7 +295,7 @@ public class LibertyExplorer extends SimpleToolWindowPanel {
                 int row,
                 boolean hasFocus) {
 
-            // LibertyModuleNode: badge icon (root only) + state icon
+            // LibertyModuleNode: badge icon (root only) + state icon + state tooltip
             if (value instanceof LibertyModuleNode moduleNode) {
                 LibertyModule lm = moduleNode.getLibertyModule();
 
@@ -322,6 +325,8 @@ public class LibertyExplorer extends SimpleToolWindowPanel {
                 setLeafIcon(compositeIcon);
                 super.getTreeCellRendererComponent(tree, value, sel, expanded, leaf, row, hasFocus);
                 setIcon(compositeIcon);
+                // 3. State tooltip — mirrors Eclipse stateTooltipText()
+                setToolTipText(resolveStateTooltip(lm));
                 return this;
             }
 
@@ -330,6 +335,7 @@ public class LibertyExplorer extends SimpleToolWindowPanel {
             // LibertyActionNode (leaf): gear icon
             if (leaf) {
                 setIcon(LibertyPluginIcons.IntelliJGear);
+                setToolTipText(null);
             }
 
             return this;
@@ -375,6 +381,59 @@ public class LibertyExplorer extends SimpleToolWindowPanel {
                 case STARTING -> LibertyPluginIcons.startingIcon();
                 case STOPPING -> LibertyPluginIcons.stoppingIcon();
                 case STOPPED  -> LibertyPluginIcons.stoppedIcon();
+            };
+        }
+
+        /**
+         * Returns the tooltip text for the state icon, mirroring Eclipse's
+         * {@code DashboardEntryLabelProvider.stateTooltipText()}:
+         * <ul>
+         *   <li>Leaf module → simple state name ("Running", "Starting...", etc.)</li>
+         *   <li>Aggregator, all children same state → simple state name</li>
+         *   <li>Aggregator, partial → "{N}/{total} running"</li>
+         * </ul>
+         */
+        private static String resolveStateTooltip(LibertyModule module) {
+            List<LibertyModule> children = module.getChildLibertyModules();
+            if (children.isEmpty()) {
+                // Leaf module — simple state label.
+                return simpleStateTooltip(module.getAppState());
+            }
+            // Aggregator — compute counts across children.
+            int running = 0, starting = 0, stopping = 0;
+            int total = children.size();
+            for (LibertyModule child : children) {
+                switch (child.getAppState()) {
+                    case RUNNING  -> running++;
+                    case STARTING -> starting++;
+                    case STOPPING -> stopping++;
+                    default       -> {}
+                }
+            }
+            if (running + starting + stopping == 0) {
+                return LocalizedResourceUtil.getMessage("liberty.dashboard.tooltip.stopped");
+            }
+            if (starting > 0) {
+                return LocalizedResourceUtil.getMessage("liberty.dashboard.tooltip.starting");
+            }
+            if (stopping > 0) {
+                return LocalizedResourceUtil.getMessage("liberty.dashboard.tooltip.stopping");
+            }
+            if (running == total) {
+                return LocalizedResourceUtil.getMessage("liberty.dashboard.tooltip.running");
+            }
+            // Mixed state: some running, some stopped.
+            return LocalizedResourceUtil.getMessage("liberty.dashboard.tooltip.modules.running",
+                    running, total);
+        }
+
+        private static String simpleStateTooltip(LibertyModule.AppState state) {
+            if (state == null) return null;
+            return switch (state) {
+                case RUNNING  -> LocalizedResourceUtil.getMessage("liberty.dashboard.tooltip.running");
+                case STARTING -> LocalizedResourceUtil.getMessage("liberty.dashboard.tooltip.starting");
+                case STOPPING -> LocalizedResourceUtil.getMessage("liberty.dashboard.tooltip.stopping");
+                case STOPPED  -> LocalizedResourceUtil.getMessage("liberty.dashboard.tooltip.stopped");
             };
         }
 
