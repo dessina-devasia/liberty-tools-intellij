@@ -18,6 +18,8 @@ import org.jetbrains.plugins.terminal.ShellTerminalWidget;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
+ * Assisted by IBM Bob
+ *
  * Watches a Liberty dev-mode terminal session and updates the
  * {@link LibertyModule.AppState} in response to observable events.
  *

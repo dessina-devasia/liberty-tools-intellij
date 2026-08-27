@@ -22,6 +22,8 @@ import java.awt.*;
 import java.util.List;
 
 /**
+ * Assisted by IBM Bob
+ *
  * A modal dialog that lets the user choose a single child Liberty module from a
  * multi-module aggregator project.
  *

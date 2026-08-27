@@ -12,6 +12,8 @@ package io.openliberty.tools.intellij.util;
 import java.util.List;
 
 /**
+ * Assisted by IBM Bob
+ *
  * Common contract for build-tool metadata extracted from a project's build file.
  * Implemented by {@link MavenProjectMetadata} and {@link GradleProjectMetadata}.
  */

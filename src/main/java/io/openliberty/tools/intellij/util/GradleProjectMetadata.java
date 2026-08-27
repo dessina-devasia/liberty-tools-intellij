@@ -25,6 +25,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
+ * Assisted by IBM Bob
+ *
  * Extracts Liberty multi-module metadata from a Gradle project directory.
  *
  * <p>Supports both Groovy DSL ({@code build.gradle}, {@code settings.gradle}) and

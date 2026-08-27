@@ -25,6 +25,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * Assisted by IBM Bob
+ *
  * Extracts Liberty multi-module metadata from a Maven {@code pom.xml} file.
  *
  * <p>Specifically this class determines:</p>
