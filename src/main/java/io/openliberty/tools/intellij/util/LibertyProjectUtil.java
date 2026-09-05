@@ -200,19 +200,43 @@ public class LibertyProjectUtil {
         return true;
     }
 
-    public static void setFocusToWidget(Project project, TerminalWidget widget) {
-        if (widget == null) return;
+    /**
+     * Brings the terminal tab associated with the given Liberty module into focus.
+     *
+     * <p>For Reworked Terminal tabs (where {@code existingWidget} is {@code null}),
+     * matches the stored {@link TerminalView} against {@link TerminalToolWindowTabsManager#getTabs()}
+     * and selects the corresponding {@link Content} directly.
+     *
+     * <p>For Classic Terminal tabs, falls back to matching by {@code TERMINAL_WIDGET_KEY}.
+     */
+    public static void setFocusToModule(Project project, LibertyModule libertyModule, TerminalWidget existingWidget) {
         TerminalToolWindowManager manager = TerminalToolWindowManager.getInstance(project);
         ToolWindow toolWindow = manager.getToolWindow();
         if (toolWindow == null) return;
 
         ContentManager contentManager = toolWindow.getContentManager();
-        Content[] contents = contentManager.getContents();
 
+        // Reworked Terminal path: match by TerminalView → Content via tabsManager.
+        TerminalView view = libertyModule.getTerminalView();
+        if (view != null) {
+            TerminalToolWindowTabsManager tabsManager = TerminalToolWindowTabsManager.getInstance(project);
+            for (TerminalToolWindowTab tab : tabsManager.getTabs()) {
+                if (tab.getView().equals(view)) {
+                    Content content = tab.getContent();
+                    contentManager.setSelectedContent(content);
+                    content.getComponent().requestFocus();
+                    return;
+                }
+            }
+            return; // tab not found — nothing to focus
+        }
+
+        // Classic Terminal path: match by TERMINAL_WIDGET_KEY.
+        if (existingWidget == null) return;
+        Content[] contents = contentManager.getContents();
         int index = 0;
         for (int i = 0; i < contents.length; i++) {
-            // Use TerminalToolWindowManager.findWidgetByContent to map Content -> TerminalWidget.
-            if (widget.equals(TerminalToolWindowManager.findWidgetByContent(contents[i]))) {
+            if (existingWidget.equals(TerminalToolWindowManager.findWidgetByContent(contents[i]))) {
                 index = i;
                 break;
             }

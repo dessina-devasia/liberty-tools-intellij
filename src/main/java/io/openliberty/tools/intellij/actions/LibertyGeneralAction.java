@@ -181,8 +181,8 @@ public abstract class LibertyGeneralAction extends AnAction {
         // Returns true when a usable terminal is available (existing widget, existing TerminalView,
         // or a freshly created Reworked tab). Returns false only when createWidget=false and no tab exists.
         boolean terminalAvailable = LibertyProjectUtil.ensureTerminalTab(project, libertyModule, createWidget, existingWidget);
-        // Set focus to an existing Classic terminal widget (no-op for Reworked tabs).
-        LibertyProjectUtil.setFocusToWidget(project, existingWidget);
+        // Bring the correct module's terminal tab into focus (works for both Reworked and Classic tabs).
+        LibertyProjectUtil.setFocusToModule(project, libertyModule, existingWidget);
 
         // Shows error for actions where terminal widget does not exist or action requires a terminal
         // to already exist with Liberty dev mode actively running.
