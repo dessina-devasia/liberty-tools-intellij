@@ -59,12 +59,11 @@ public class LibertyActionUtil {
         // Run on a pooled thread so the EDT is never blocked.
         ApplicationManager.getApplication().executeOnPooledThread(() -> {
             executeCommand(libertyModule, cmd1);
-            // Wait until the terminal session has an active TTY before sending the second command.
-            // This is required because IntelliJ batches commands and runs them out of order.
+            // Wait until the terminal session is ready before sending the second command.
+            // This is required because IntelliJ batches commands and may run them out of order.
             int i = 0;
             try {
-                while (libertyModule.getTerminalWidget() != null
-                        && libertyModule.getTerminalWidget().getTtyConnector() == null) {
+                while (!isSessionReady(libertyModule)) {
                     if (i > 100) {
                         LOGGER.error("Timed out waiting to execute command: " + cmd1);
                         return;
@@ -79,6 +78,24 @@ public class LibertyActionUtil {
             }
             executeCommand(libertyModule, cmd2);
         });
+    }
+
+    /**
+     * Returns {@code true} once the terminal session associated with the module is ready to
+     * accept commands (i.e. the shell process has started).
+     *
+     * <p>For Reworked Terminal tabs, polls {@link TerminalView#getSessionState()} until the
+     * state is {@link TerminalViewSessionState.Running}.
+     * For Classic Terminal tabs, checks that a {@code TtyConnector} has been attached.
+     */
+    private static boolean isSessionReady(LibertyModule libertyModule) {
+        TerminalView view = libertyModule.getTerminalView();
+        if (view != null) {
+            return view.getSessionState().getValue() instanceof TerminalViewSessionState.Running;
+        }
+        // Classic path: session is ready once a TtyConnector is attached.
+        return libertyModule.getTerminalWidget() == null
+                || libertyModule.getTerminalWidget().getTtyConnector() != null;
     }
 
     /**

@@ -148,59 +148,56 @@ public class LibertyProjectUtil {
     }
 
     /**
-     * Get the Terminal widget for the corresponding Liberty module, creating a new one if requested.
+     * Creates a new terminal tab for the given module if {@code createWidget} is {@code true} and
+     * no existing widget/view is present. Returns {@code true} if a usable terminal is available
+     * after the call (either pre-existing or just created).
      *
-     * <p>A new Reworked Terminal tab is created via {@link TerminalToolWindowTabsManager}.
-     * The resulting {@link TerminalView} is stored on the module alongside the {@link TerminalWidget}.
+     * <p>Uses the Reworked Terminal API ({@link TerminalToolWindowTabsManager}) exclusively.
+     * The resulting {@link TerminalView} is stored on the module and is the sole interface used
+     * for all subsequent operations. {@link TerminalWidget} is left {@code null} for Reworked tabs
+     * because {@code TerminalToolWindowManager.findWidgetByContent()} always returns {@code null}
+     * for Reworked Terminal tabs — they do not store {@code TERMINAL_WIDGET_KEY} on their Content.
      *
-     * @param project
-     * @param libertyModule
-     * @param createWidget  true if a new widget should be created
-     * @param terminalToolWindowManager
-     * @param widget        existing widget, or {@code null} if none is known
-     * @return TerminalWidget or null if it does not exist
+     * @return {@code true} if the module has an active terminal (existing widget, existing view,
+     *         or a freshly created tab); {@code false} otherwise.
      */
-    public static TerminalWidget getTerminalWidget(Project project, LibertyModule libertyModule, boolean createWidget,
-                                                   TerminalToolWindowManager terminalToolWindowManager, TerminalWidget widget) {
-        if (widget == null && createWidget) {
-            // Create a new Reworked Terminal tab.
+    public static boolean ensureTerminalTab(Project project, LibertyModule libertyModule, boolean createWidget,
+                                            TerminalWidget existingWidget) {
+        // An existing Classic widget counts as a live terminal.
+        if (existingWidget != null) {
+            return true;
+        }
+        // A previously created Reworked Terminal view counts — unless it has been terminated
+        // (e.g. the user closed the tab). Check the session state to detect stale views.
+        TerminalView storedView = libertyModule.getTerminalView();
+        if (storedView != null) {
             TerminalToolWindowTabsManager tabsManager = TerminalToolWindowTabsManager.getInstance(project);
-            TerminalToolWindowTab tab = tabsManager.createTabBuilder()
-                    .workingDirectory(project.getBasePath())
-                    .tabName(libertyModule.getName())
-                    .requestFocus(true)
-                    .createTab();
-            TerminalView terminalView = tab.getView();
-
-            // Retrieve the associated TerminalWidget via the tab's Content.
-            ToolWindow toolWindow = terminalToolWindowManager.getToolWindow();
-            if (toolWindow != null) {
-                Content content = findContentForView(tabsManager, terminalView);
-                TerminalWidget newWidget = content != null
-                        ? TerminalToolWindowManager.findWidgetByContent(content) : null;
-                if (newWidget != null) {
-                    libertyModule.setTerminalView(terminalView);
-                    libertyModule.setTerminalWidget(newWidget);
-                    return newWidget;
-                }
+            boolean tabStillOpen = tabsManager.getTabs().stream()
+                    .anyMatch(tab -> tab.getView().equals(storedView));
+            if (tabStillOpen) {
+                return true;
             }
-            // Fallback: store the view and widget from a fresh createShellWidget call.
-            TerminalWidget newTerminal = terminalToolWindowManager.createShellWidget(
-                    project.getBasePath(), libertyModule.getName(), true, true);
-            libertyModule.setTerminalWidget(newTerminal);
-            return newTerminal;
+            // Tab was closed — clear the stale references so a new tab can be created.
+            libertyModule.setTerminalView(null);
+            libertyModule.setTerminalWidget(null);
         }
-        return widget;
-    }
-
-    /** Returns the {@link Content} for the tab hosting the given {@link TerminalView}, or {@code null}. */
-    private static Content findContentForView(TerminalToolWindowTabsManager tabsManager, TerminalView targetView) {
-        for (TerminalToolWindowTab tab : tabsManager.getTabs()) {
-            if (tab.getView().equals(targetView)) {
-                return tab.getContent();
-            }
+        if (!createWidget) {
+            return false;
         }
-        return null;
+        // Create a new Reworked Terminal tab.
+        TerminalToolWindowTabsManager tabsManager = TerminalToolWindowTabsManager.getInstance(project);
+        TerminalToolWindowTab tab = tabsManager.createTabBuilder()
+                .workingDirectory(project.getBasePath())
+                .tabName(libertyModule.getName())
+                .requestFocus(true)
+                .createTab();
+        // Store the TerminalView for all subsequent operations (session state, sendText).
+        // Do NOT call TerminalToolWindowManager.findWidgetByContent(tab.getContent()) —
+        // Reworked Terminal tabs never set TERMINAL_WIDGET_KEY on their Content, so that
+        // call always returns null and would incorrectly signal failure.
+        libertyModule.setTerminalView(tab.getView());
+        libertyModule.setTerminalWidget(null);
+        return true;
     }
 
     public static void setFocusToWidget(Project project, TerminalWidget widget) {
@@ -292,15 +289,18 @@ public class LibertyProjectUtil {
      */
     public static TerminalWidget getTerminalWidget(LibertyModule libertyModule, TerminalToolWindowManager terminalToolWindowManager) {
         TerminalWidget widget = libertyModule.getTerminalWidget();
-        // check if widget still exists in terminal view
-        if (widget != null) {
-            for (TerminalWidget terminalWidget : terminalToolWindowManager.getTerminalWidgets()) {
-                if (widget.equals(terminalWidget)) {
-                    return widget;
-                }
+        if (widget == null) {
+            // No Classic widget stored — this module uses a Reworked Terminal tab (or has no tab yet).
+            // Do NOT clear terminalView here; its liveness is validated in ensureTerminalTab().
+            return null;
+        }
+        // Check if the Classic widget still exists in the terminal view.
+        for (TerminalWidget terminalWidget : terminalToolWindowManager.getTerminalWidgets()) {
+            if (widget.equals(terminalWidget)) {
+                return widget;
             }
         }
-        // Widget is gone – clear both the TerminalWidget and the TerminalView references.
+        // Classic widget is gone — clear both references so a new tab can be created.
         libertyModule.setTerminalWidget(null);
         libertyModule.setTerminalView(null);
         return null;

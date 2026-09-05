@@ -11,7 +11,6 @@ package io.openliberty.tools.intellij.actions;
 
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
-import com.intellij.terminal.ui.TerminalWidget;
 import io.openliberty.tools.intellij.LibertyModule;
 import io.openliberty.tools.intellij.util.*;
 import static io.openliberty.tools.intellij.util.Constants.ProjectType.*;
@@ -42,8 +41,7 @@ public class LibertyDevStartAction extends LibertyGeneralAction {
         Project project = libertyModule.getProject();
         VirtualFile buildFile = libertyModule.getBuildFile();
         Constants.ProjectType projectType = libertyModule.getProjectType();
-        TerminalWidget widget = getTerminalWidgetWithFocus(true, project, buildFile, getActionCommandName());
-        if (widget == null) {
+        if (!ensureTerminalForAction(true, project, buildFile, getActionCommandName())) {
             return;
         }
 
